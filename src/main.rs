@@ -1,13 +1,6 @@
-use std::{
-    alloc::Layout,
-    fmt::format,
-    io::{stdout, Cursor, Result},
-};
-
 use ratatui::{
     backend::CrosstermBackend,
     crossterm::{
-        cursor,
         event::{self, KeyCode, KeyEventKind},
         terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
         ExecutableCommand,
@@ -17,6 +10,7 @@ use ratatui::{
     widgets::*,
     Terminal,
 };
+use std::io::{stdout, Result};
 
 #[derive(Debug, Default)]
 pub struct App {
@@ -80,34 +74,38 @@ fn main() -> Result<()> {
             )
         })?;
         // TODO main loop
-        if let event::Event::Key(key) = event::read()? {
-            if key.kind == KeyEventKind::Press {
-                match key.code {
-                    KeyCode::Char('q') => {
+        let match_event = event::read()?;
+        match match_event {
+            Event::Key(KeyEvent {
+                //modifiers: KeyModifiers::CONTROL,
+                code: KeyCode::Char('q'),
+                ..
+            }) => 
+                    {
                         break;
                     }
-                    KeyCode::Char('h') => {
-                        cursor.x = cursor.x.saturating_sub(1);
-                    }
-                    KeyCode::Char('j') => {
-                        cursor.y = cursor.y.saturating_add(1);
-                    }
-                    KeyCode::Char('k') => {
-                        cursor.y = cursor.y.saturating_sub(1);
-                    }
-                    KeyCode::Char('l') => {
-                        cursor.x = cursor.x.saturating_add(1);
-                    }
-                    KeyCode::Char('+') => {
-                        app.counter = app.counter.saturating_add(1);
-                        app.rows[0].push("7/9 1/2 1".into());
-                        app.constrains.push(Constraint::Max(10));
-                    }
-                    KeyCode::Char('-') => {
-                        app.counter = app.counter.saturating_sub(1);
-                        app.rows[0].pop();
-                        app.constrains.pop();
-                    }
+                   // KeyCode::Char('h') => {
+                   //     cursor.x = cursor.x.saturating_sub(1);
+                   // }
+                   // KeyCode::Char('j') => {
+                   //     cursor.y = cursor.y.saturating_add(1);
+                   // }
+                   // KeyCode::Char('k') => {
+                   //     cursor.y = cursor.y.saturating_sub(1);
+                   // }
+                   // KeyCode::Char('l') => {
+                   //     cursor.x = cursor.x.saturating_add(1);
+                   // }
+                   // KeyCode::Char('+') => {
+                   //     app.counter = app.counter.saturating_add(1);
+                   //     app.rows[0].push("7/9 1/2 1".into());
+                   //     app.constrains.push(Constraint::Max(10));
+                   // }
+                   // KeyCode::Char('-') => {
+                   //     app.counter = app.counter.saturating_sub(1);
+                   //     app.rows[0].pop();
+                   //     app.constrains.pop();
+                   // }
                     _ => (),
                 }
             }
