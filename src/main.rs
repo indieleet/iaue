@@ -1,7 +1,7 @@
 use ratatui::{
     backend::CrosstermBackend,
     crossterm::{
-        event::{self, KeyCode, KeyEventKind},
+        event::{self, KeyCode, KeyEventKind, KeyEvent, Event},
         terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
         ExecutableCommand,
     },
@@ -17,6 +17,7 @@ pub struct App {
     counter: u16,
     cursor: u8,
     items: Vec<Constraint>,
+    current_times: String,
     columns: u8,
     rows: Vec<Vec<String>>,
     constrains: Vec<Constraint>,
@@ -38,6 +39,7 @@ fn main() -> Result<()> {
         counter: 1,
         cursor: 0,
         columns: 1,
+        current_times: "".into(),
         items: vec![Constraint::Percentage(30), Constraint::Fill(1)],
         rows: vec![
             vec!["7/9 1/2 1".into(), "1/2 3/5 1/2".into()],
@@ -63,6 +65,17 @@ fn main() -> Result<()> {
                 Paragraph::new(format!("Hello {}", app.counter)).block(Block::bordered()),
                 size_x[1],
             );
+            let ct = &app.current_times;
+            f.render_widget(
+                ct,
+                layout::Rect {
+                    x: f.size().width - ct.len() as u16,
+                    y: f.size().height - 1,
+                    width: ct.len() as u16,
+                    height: 1,
+                },
+
+            );
             f.render_widget(
                 " ".on_red(),
                 layout::Rect {
@@ -83,7 +96,63 @@ fn main() -> Result<()> {
             }) => 
                     {
                         break;
-                    }
+                    },
+            Event::Key(KeyEvent {
+                //modifiers: KeyModifiers::CONTROL,
+                code: KeyCode::Char(matched_code @ '0'..='9'),
+                ..
+            }) => 
+                    {
+                app.current_times.push(matched_code)
+                    },
+            Event::Key(KeyEvent {
+                //modifiers: KeyModifiers::CONTROL,
+                code: KeyCode::Esc,
+                ..
+            }) => 
+            {
+                let _ = &app.current_times.clear();
+            },
+            Event::Key(KeyEvent {
+                //modifiers: KeyModifiers::CONTROL,
+                code: KeyCode::Char('h'),
+                ..
+            }) => 
+            {
+                let count: u16 = app.current_times.parse().unwrap_or(1);
+                let _ = &app.current_times.clear();
+                cursor.x = cursor.x.saturating_sub(count);
+            },
+            Event::Key(KeyEvent {
+                //modifiers: KeyModifiers::CONTROL,
+                code: KeyCode::Char('j'),
+                ..
+            }) => 
+            {
+                let count: u16 = app.current_times.parse().unwrap_or(1);
+                let _ = &app.current_times.clear();
+                cursor.y = cursor.y.saturating_add(count);
+            },
+            Event::Key(KeyEvent {
+                //modifiers: KeyModifiers::CONTROL,
+                code: KeyCode::Char('k'),
+                ..
+            }) => 
+            {
+                let count: u16 = app.current_times.parse().unwrap_or(1);
+                let _ = &app.current_times.clear();
+                cursor.y = cursor.y.saturating_sub(count);
+            },
+            Event::Key(KeyEvent {
+                //modifiers: KeyModifiers::CONTROL,
+                code: KeyCode::Char('l'),
+                ..
+            }) => 
+            {
+                let count: u16 = app.current_times.parse().unwrap_or(1);
+                let _ = &app.current_times.clear();
+                cursor.x = cursor.x.saturating_add(count);
+            },
                    // KeyCode::Char('h') => {
                    //     cursor.x = cursor.x.saturating_sub(1);
                    // }
@@ -108,9 +177,9 @@ fn main() -> Result<()> {
                    // }
                     _ => (),
                 }
-            }
-        }
     }
+        
+    
     stdout().execute(LeaveAlternateScreen)?;
     disable_raw_mode()?;
     Ok(())
