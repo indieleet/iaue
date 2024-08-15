@@ -19,6 +19,8 @@ pub struct App {
     items: Vec<Constraint>,
     current_times: String,
     columns: u8,
+    x_bound: u16,
+    y_bound: u16,
     rows: Vec<Vec<String>>,
     constrains: Vec<Constraint>,
 }
@@ -39,6 +41,8 @@ fn main() -> Result<()> {
         counter: 1,
         cursor: 0,
         columns: 1,
+        x_bound: 0,
+        y_bound: 0,
         current_times: "".into(),
         items: vec![Constraint::Percentage(30), Constraint::Fill(1)],
         rows: vec![
@@ -49,6 +53,8 @@ fn main() -> Result<()> {
     };
     loop {
         terminal.draw(|f| {
+            app.x_bound = f.size().width;
+            app.y_bound = f.size().height;
             let size_x = ratatui::layout::Layout::default()
                 .direction(Direction::Vertical)
                 .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
@@ -131,7 +137,10 @@ fn main() -> Result<()> {
             {
                 let count: u16 = app.current_times.parse().unwrap_or(1);
                 let _ = &app.current_times.clear();
-                cursor.y = cursor.y.saturating_add(count);
+                //cursor.y = cursor.y.saturating_add(count);
+                let new_y = cursor.y.saturating_add(count);
+                cursor.y = if new_y > app.y_bound - 1 { app.y_bound - 1 }
+                    else { new_y };
             },
             Event::Key(KeyEvent {
                 //modifiers: KeyModifiers::CONTROL,
@@ -151,7 +160,9 @@ fn main() -> Result<()> {
             {
                 let count: u16 = app.current_times.parse().unwrap_or(1);
                 let _ = &app.current_times.clear();
-                cursor.x = cursor.x.saturating_add(count);
+                let new_x = cursor.x.saturating_add(count);
+                cursor.x = if new_x > app.x_bound - 1 { app.x_bound - 1 }
+                    else { new_x };
             },
                    // KeyCode::Char('h') => {
                    //     cursor.x = cursor.x.saturating_sub(1);
