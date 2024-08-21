@@ -72,8 +72,8 @@ fn main() -> Result<()> {
         current_times: "".into(),
         items: vec![Constraint::Percentage(30), Constraint::Fill(1)],
         rows: vec![
-            vec![Span::from("7/9 1/2 1").to_owned(), Span::from("1/2 3/5 1/2").to_owned()],
-            vec![Span::from("3/2 1 1").to_owned()],
+            vec![Span::from("7/9 1/2 1/1").to_owned(), Span::from("1/2 3/5 1/2").to_owned()],
+            vec![Span::from("3/2 1/1 1/1").to_owned()],
         ],
         constrains: vec![Constraint::Max(12); 2],
     };
@@ -371,10 +371,10 @@ fn main() -> Result<()> {
                                     .collect();
                                         //.map(|(x, _, y)| str::parse::<usize>(x).unwrap() as f32 / str::parse::<usize>(y).unwrap() as f32))
                                 let mut vec_args = Vec::with_capacity(3);
-                                for i in 0..temp_args.len() {
-                                    let current_cell = temp_args[i].clone();
+                                for el in temp_args {
+                                    //let current_cell = temp_args[i].clone();
 
-                                    vec_args.push(str::parse::<usize>(&current_cell[1]).unwrap() as f32 / str::parse::<usize>(&current_cell[1]).unwrap() as f32);
+                                    vec_args.push(str::parse::<usize>(&el[1]).unwrap() as f32 / str::parse::<usize>(&el[1]).unwrap() as f32);
                                 }
                                 let (f, l, v) = (vec_args[0], vec_args[1], vec_args[2]);
                                 let _ = &output.push(f0(f, l, v, 44100, &[]));
