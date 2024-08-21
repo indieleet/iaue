@@ -1,16 +1,17 @@
+use itertools::Itertools;
 use ratatui::{
     backend::CrosstermBackend,
     crossterm::{
-        event::{self, KeyCode, KeyEventKind, KeyEvent, Event},
+        cursor, event::{self, Event, KeyCode, KeyEvent, KeyModifiers},
         terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
-        ExecutableCommand,
+        ExecutableCommand
     },
     prelude::*,
-    style::Stylize,
-    widgets::*,
-    Terminal,
+    style::Stylize, widgets::*, Terminal,
 };
+use style::Styled;
 use std::io::{stdout, Result};
+use std::process::{Command, Stdio};
 
 #[derive(Debug, Default)]
 pub struct App<'a> {
@@ -21,7 +22,7 @@ pub struct App<'a> {
     columns: u8,
     x_bound: u16,
     y_bound: u16,
-    rows: Vec<Vec<Cell<'a>>>,
+    rows: Vec<Vec<Span<'a>>>,
     constrains: Vec<Constraint>,
 }
 
@@ -31,6 +32,7 @@ enum Mode {
     Normal,
     Insert,
     Visual,
+    Command,
 }
 
 
@@ -70,23 +72,28 @@ fn main() -> Result<()> {
         current_times: "".into(),
         items: vec![Constraint::Percentage(30), Constraint::Fill(1)],
         rows: vec![
-            vec![Cell::from("7/9 1/2 1"), Cell::from("1/2 3/5 1/2")],
-            vec![Cell::from("3/2 1 1")],
+            vec![Span::from("7/9 1/2 1").to_owned(), Span::from("1/2 3/5 1/2").to_owned()],
+            vec![Span::from("3/2 1 1").to_owned()],
         ],
-        constrains: vec![Constraint::Max(10), Constraint::Max(10)],
+        constrains: vec![Constraint::Max(12); 2],
     };
+    let mut fn_status: f32 = 0.0;
     //let mut state = TableState::new();
     loop {
         let mut table_rows = app.rows.to_owned();
-        let mut cur_cell_text = Cell::default();
+        let mut cur_cell_text = Span::default();
+        let (max_vx, min_vx) = if normal_cursor.x >= visual_cursor.x { (normal_cursor.x, visual_cursor.x) }
+        else { (visual_cursor.x, normal_cursor.x) };
+        let (max_vy, min_vy) = if normal_cursor.y >= visual_cursor.y { (normal_cursor.y, visual_cursor.y) }
+        else { (visual_cursor.y, normal_cursor.y) };
         for (i_row, c_row) in table_rows.iter_mut().enumerate() {
             for (i_el, el) in c_row.iter_mut().enumerate() {
                 match current_mode {
                     Mode::Normal if (normal_cursor.x as usize, normal_cursor.y as usize) == (i_el, i_row) => {
-                        cur_cell_text = el.clone().add_modifier(Modifier::REVERSED);
+                        *el = el.clone().add_modifier(Modifier::REVERSED);
                     },
-                    Mode::Visual if (normal_cursor.x as usize, normal_cursor.y as usize) == (i_el, i_row) => {
-                        cur_cell_text = el.clone().add_modifier(Modifier::REVERSED);
+                    Mode::Visual if (i_el >= min_vx as usize && i_el <= max_vx as usize) && (i_row >= min_vy as usize && i_row <= max_vy as usize) => {
+                        *el = el.clone().add_modifier(Modifier::REVERSED);
                     },
                     Mode::Insert if (normal_cursor.x as usize, normal_cursor.y as usize) == (i_el, i_row) => {
                         cur_cell_text = el.clone().add_modifier(Modifier::REVERSED);
@@ -95,7 +102,8 @@ fn main() -> Result<()> {
                 }
             }
         }
-        //let y_bound = core::iter::repeat_with(|| &app.rows.iter().next().unwrap_or(&Vec::<Cell>::new()).get(normal_cursor.x as usize)).count();
+        //table_rows[normal_cursor.y as usize][normal_cursor.x as usize] = cur_cell_text;
+        //let y_bound = core::iter::repeat_with(|| &app.rows.iter().next().unwrap_or(&Vec::<Span>::new()).get(normal_cursor.x as usize)).count();
         let mut y_bound: u16 = 0;
         for el in &app.rows {
             if el.get(normal_cursor.x as usize).is_some() {
@@ -105,12 +113,11 @@ fn main() -> Result<()> {
                 break;
             }
         }
-        table_rows[normal_cursor.y as usize][normal_cursor.x as usize] = cur_cell_text;
-        let mut mode_str = match current_mode { 
+        let mode_str = match current_mode { 
             Mode::Normal => "Normal",
             Mode::Visual => "Visual",
             Mode::Insert => "Insert",
-            _ => todo!()
+            Mode::Command => "Command",
             };
         terminal.draw(|f| {
             app.x_bound = f.size().width;
@@ -140,6 +147,13 @@ fn main() -> Result<()> {
             f.render_widget(mode_str, layout::Rect {
                 x: 0,
                 y: app.y_bound - 1,
+                width: mode_str.len() as u16,
+                height: 1
+            }
+            );
+            f.render_widget(format!("{}", fn_status).set_style(Modifier::REVERSED), layout::Rect {
+                x: 0,
+                y: app.y_bound - 2,
                 width: mode_str.len() as u16,
                 height: 1
             }
@@ -207,6 +221,7 @@ fn main() -> Result<()> {
                         normal_cursor.x = normal_cursor.x.saturating_sub(count);
                     },
                     Mode::Insert => todo!(),
+                    Mode::Command => todo!(),
                 }
                 //normal_cursor.x = normal_cursor.x.saturating_sub(count);
             },
@@ -219,7 +234,7 @@ fn main() -> Result<()> {
                 let count: u16 = app.current_times.parse().unwrap_or(1);
                 let _ = &app.current_times.clear();
                 //cursor.y = cursor.y.saturating_add(count);
-                let new_y = normal_cursor.y.saturating_add(count);
+                //let new_y = normal_cursor.y.saturating_add(count);
                 match current_mode {
                     Mode::Normal | Mode::Visual => { 
                         //let y_bound = app.rows[normal_cursor.y as usize].len() as u16;
@@ -228,6 +243,7 @@ fn main() -> Result<()> {
                             else { new_y };
                     },
                     Mode::Insert => todo!(),
+                    Mode::Command => todo!(),
                 }
                 //normal_cursor.y = if new_y > app.y_bound - 1 { app.y_bound - 1 }
                 //    else { new_y };
@@ -244,9 +260,9 @@ fn main() -> Result<()> {
                     Mode::Normal | Mode::Visual => { 
                         normal_cursor.y = normal_cursor.y.saturating_sub(count);
                     },
-                    Mode::Insert => todo!(),
+                    Mode::Insert | Mode::Command => todo!(),
                 }
-                normal_cursor.y = normal_cursor.y.saturating_sub(count);
+                //normal_cursor.y = normal_cursor.y.saturating_sub(count);
             },
             Event::Key(KeyEvent {
                 //modifiers: KeyModifiers::CONTROL,
@@ -263,7 +279,7 @@ fn main() -> Result<()> {
                         normal_cursor.x = if new_x > x_bound - 1 { x_bound - 1 }
                             else { new_x };
                     },
-                    Mode::Insert => todo!(),
+                    Mode::Insert | Mode::Command => todo!(),
                 }
                 //cursor.x = if new_x > app.x_bound - 1 { app.x_bound - 1 }
                 //    else { new_x };
@@ -273,7 +289,15 @@ fn main() -> Result<()> {
                 code: KeyCode::Char('+'),
                 ..
             }) => 
-            {},
+            {
+                let len_rows = app.rows[y_bound as usize - 1].len();
+                if (y_bound as usize) < app.rows.len() {
+                    app.rows[y_bound as usize].extend(vec![Span::from("1/1 1/1 1/1"); (normal_cursor.x as usize + 1).saturating_sub(len_rows - 1)]); 
+                }
+                else {
+                    app.rows.push(vec![Span::from("1/1 1/1 1/1"); normal_cursor.x as usize + 1]); 
+                }
+            },
             Event::Key(KeyEvent {
                 //modifiers: KeyModifiers::CONTROL,
                 code: KeyCode::Char('v'),
@@ -283,6 +307,82 @@ fn main() -> Result<()> {
                 current_mode = Mode::Visual;
                 (visual_cursor.x, visual_cursor.y) = (normal_cursor.x, normal_cursor.y);
             },
+            Event::Key(KeyEvent {
+                modifiers: KeyModifiers::CONTROL,
+                code: KeyCode::Char('e'),
+                ..
+            }) => 
+            { 
+                stdout().execute(LeaveAlternateScreen)?;
+                disable_raw_mode()?;
+//.arg("/tmp/a.txt")
+                Command::new("nvim").status()?;
+                stdout().execute(EnterAlternateScreen)?;
+                enable_raw_mode()?;
+                let _ = terminal.clear();
+                //let mut terminal = Terminal::new(CrosstermBackend::new(stdout()))?;
+            },
+            Event::Key(KeyEvent {
+                modifiers: KeyModifiers::CONTROL,
+                code: KeyCode::Char('r'),
+                ..
+            }) =>
+            {
+
+                let lib_name = "./librust_lib.so";
+                let code_name = "rust_lib.rs";
+                let mut file = std::fs::File::create(code_name).expect("can't find file");
+                use std::io::Write;
+                file.write_all(
+                    r#"#[no_mangle] pub extern "C" fn f0(f: f32, l: f32, v: f32, t: usize, p: &[f32]) -> Vec<f32> {
+                         vec![f * 2.0]
+                    }
+                    "#
+                        .as_bytes(),
+                )?;
+                drop(file); // ensure file is closed
+                let comp_status = std::process::Command::new("rustc")
+                    .arg("-C")
+                    .arg("target-feature=-crt-static")
+                    .arg("--crate-type")
+                    .arg("cdylib")
+                    .arg(code_name)
+                    .stdout(Stdio::null())
+                    .stderr(Stdio::null())
+                    .status()?;
+                let mut output: Vec<Vec<f32>> = Vec::with_capacity(app.rows.len());
+                if comp_status.success() {
+                    //println!("~~~~ compilation of {} OK ~~~~", code_name);
+                    unsafe {
+                        let lib = libloading::Library::new(lib_name).unwrap();
+                        let f0: libloading::Symbol<
+                        unsafe extern "C" fn(f32, f32, f32, usize, &[f32]) -> Vec<f32>,
+                        > = lib.get(b"f0").unwrap();
+                       // let call_me: libloading::Symbol<
+                       // unsafe extern "C" fn(i32) -> Vec<f32>,
+                       // > = lib.get(b"call_me").unwrap_or(f0);
+                            //fn_status = f0(1.0)[0];
+                        for row in &app.rows {
+                            for el in  row {
+                                let temp_args: Vec<Vec<String>> = el
+                                    .to_string()
+                                    .split(" ")
+                                    .map(|it| it.split("/").map(String::from).collect::<Vec<String>>())
+                                    .collect();
+                                        //.map(|(x, _, y)| str::parse::<usize>(x).unwrap() as f32 / str::parse::<usize>(y).unwrap() as f32))
+                                let mut vec_args = Vec::with_capacity(3);
+                                for i in 0..temp_args.len() {
+                                    let current_cell = temp_args[i].clone();
+
+                                    vec_args.push(str::parse::<usize>(&current_cell[1]).unwrap() as f32 / str::parse::<usize>(&current_cell[1]).unwrap() as f32);
+                                }
+                                let (f, l, v) = (vec_args[0], vec_args[1], vec_args[2]);
+                                let _ = &output.push(f0(f, l, v, 44100, &[]));
+                            }
+                        }
+                    }
+                }
+            }
                    // KeyCode::Char('h') => {
                    //     cursor.x = cursor.x.saturating_sub(1);
                    // }

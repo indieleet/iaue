@@ -5,4 +5,5 @@ edition = "2021"
 
 [dependencies]
 itertools = "0.12.1"
+libloading = "0.8.5"
 ratatui = { version = "0.28.0", features = ["all-widgets"] }
