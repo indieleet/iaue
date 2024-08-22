@@ -1,10 +1,7 @@
-use itertools::Itertools;
 use ratatui::{
     backend::CrosstermBackend,
     crossterm::{
-        cursor, event::{self, Event, KeyCode, KeyEvent, KeyModifiers},
-        terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
-        ExecutableCommand
+        cursor, event::{self, Event, KeyCode, KeyEvent, KeyModifiers}, style::Color, terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen}, ExecutableCommand
     },
     prelude::*,
     style::Stylize, widgets::*, Terminal,
@@ -12,6 +9,8 @@ use ratatui::{
 use style::Styled;
 use std::io::{stdout, Result};
 use std::process::{Command, Stdio};
+
+use tinyaudio::prelude::*;
 
 #[derive(Debug, Default)]
 pub struct App<'a> {
@@ -72,12 +71,20 @@ fn main() -> Result<()> {
         current_times: "".into(),
         items: vec![Constraint::Percentage(30), Constraint::Fill(1)],
         rows: vec![
-            vec![Span::from("7/9 1/2 1/1").to_owned(), Span::from("1/2 3/5 1/2").to_owned()],
-            vec![Span::from("3/2 1/1 1/1").to_owned()],
+            vec![Span::from("1/8 4/1 1/1").to_owned(), Span::from("1/2 3/5 1/2").to_owned()],
+            vec![Span::from("3/2 1/1 1/2").to_owned()],
+            vec![Span::from("3/2 1/1 1/2").to_owned()],
+            vec![Span::from("3/2 1/1 2/1").to_owned()],
+            vec![Span::from("3/2 1/1 2/1").to_owned()],
         ],
         constrains: vec![Constraint::Max(12); 2],
     };
     let mut fn_status: f32 = 0.0;
+    let audio_params = OutputDeviceParameters {
+    channels_count: 1,
+    sample_rate: 44100,
+    channel_sample_count: 4410,
+};
     //let mut state = TableState::new();
     loop {
         let mut table_rows = app.rows.to_owned();
@@ -128,7 +135,8 @@ fn main() -> Result<()> {
                 .split(f.size());
             f.render_widget(
                 Table::new(
-                    table_rows.into_iter().map(Row::new),
+                    table_rows.into_iter().enumerate().map(|(i, row)| if i == normal_cursor.y as usize { Row::new(row).bg(Color::Grey) }
+                    else { Row::new(row) }),
                     app.constrains.to_owned(),
                 )
                 .block(Block::bordered()),
@@ -209,7 +217,7 @@ fn main() -> Result<()> {
             },
             Event::Key(KeyEvent {
                 //modifiers: KeyModifiers::CONTROL,
-                code: KeyCode::Char('h'),
+                code: KeyCode::Char('h') | KeyCode::Left,
                 ..
             }) => 
             {
@@ -227,7 +235,7 @@ fn main() -> Result<()> {
             },
             Event::Key(KeyEvent {
                 //modifiers: KeyModifiers::CONTROL,
-                code: KeyCode::Char('j'),
+                code: KeyCode::Char('j') | KeyCode::Down,
                 ..
             }) => 
             {
@@ -250,7 +258,7 @@ fn main() -> Result<()> {
             },
             Event::Key(KeyEvent {
                 //modifiers: KeyModifiers::CONTROL,
-                code: KeyCode::Char('k'),
+                code: KeyCode::Char('k') | KeyCode::Up,
                 ..
             }) => 
             {
@@ -266,7 +274,7 @@ fn main() -> Result<()> {
             },
             Event::Key(KeyEvent {
                 //modifiers: KeyModifiers::CONTROL,
-                code: KeyCode::Char('l'),
+                code: KeyCode::Char('l') | KeyCode::Right,
                 ..
             }) => 
             {
@@ -278,6 +286,23 @@ fn main() -> Result<()> {
                         let new_x = normal_cursor.x.saturating_add(count);
                         normal_cursor.x = if new_x > x_bound - 1 { x_bound - 1 }
                             else { new_x };
+                    },
+                    Mode::Insert | Mode::Command => todo!(),
+                }
+                //cursor.x = if new_x > app.x_bound - 1 { app.x_bound - 1 }
+                //    else { new_x };
+            },
+            Event::Key(KeyEvent {
+                //modifiers: KeyModifiers::CONTROL,
+                code: KeyCode::Char('G'),
+                ..
+            }) => 
+            {
+                let count: u16 = app.current_times.parse().unwrap_or(y_bound-1);
+                let _ = &app.current_times.clear();
+                match current_mode {
+                    Mode::Normal | Mode::Visual => { 
+                        normal_cursor.y = if count <= y_bound - 1 { count } else { y_bound - 1 };
                     },
                     Mode::Insert | Mode::Command => todo!(),
                 }
@@ -335,12 +360,18 @@ fn main() -> Result<()> {
                 use std::io::Write;
                 file.write_all(
                     r#"#[no_mangle] pub extern "C" fn f0(f: f32, l: f32, v: f32, t: usize, p: &[f32]) -> Vec<f32> {
-                         vec![f * 2.0]
+                         let freq = t as f32 / f;
+                         let length = l * t as f32;
+                         (0..freq as usize)
+                         .map(|it| it as f32 / f - 0.5).map(|it| it * v)
+                         .cycle()
+                         .take(length as usize)
+                         .collect()
                     }
                     "#
                         .as_bytes(),
                 )?;
-                drop(file); // ensure file is closed
+                drop(file);
                 let comp_status = std::process::Command::new("rustc")
                     .arg("-C")
                     .arg("target-feature=-crt-static")
@@ -350,66 +381,56 @@ fn main() -> Result<()> {
                     .stdout(Stdio::null())
                     .stderr(Stdio::null())
                     .status()?;
-                let mut output: Vec<Vec<f32>> = Vec::with_capacity(app.rows.len());
+                let mut output: Vec<Vec<Vec<f32>>> = vec![Vec::with_capacity(app.rows.len()); app.rows.get(0).unwrap_or(&vec![]).iter().count()];
+                let (mut fs, mut ls, mut vs) = (440.0, 1.0, 1.0);
                 if comp_status.success() {
-                    //println!("~~~~ compilation of {} OK ~~~~", code_name);
                     unsafe {
                         let lib = libloading::Library::new(lib_name).unwrap();
                         let f0: libloading::Symbol<
                         unsafe extern "C" fn(f32, f32, f32, usize, &[f32]) -> Vec<f32>,
                         > = lib.get(b"f0").unwrap();
-                       // let call_me: libloading::Symbol<
-                       // unsafe extern "C" fn(i32) -> Vec<f32>,
-                       // > = lib.get(b"call_me").unwrap_or(f0);
-                            //fn_status = f0(1.0)[0];
                         for row in &app.rows {
-                            for el in  row {
+                            for (i, el) in row.iter().enumerate() {
                                 let temp_args: Vec<Vec<String>> = el
                                     .to_string()
-                                    .split(" ")
+                                    .split_whitespace()
                                     .map(|it| it.split("/").map(String::from).collect::<Vec<String>>())
                                     .collect();
                                         //.map(|(x, _, y)| str::parse::<usize>(x).unwrap() as f32 / str::parse::<usize>(y).unwrap() as f32))
                                 let mut vec_args = Vec::with_capacity(3);
-                                for el in temp_args {
-                                    //let current_cell = temp_args[i].clone();
-
-                                    vec_args.push(str::parse::<usize>(&el[1]).unwrap() as f32 / str::parse::<usize>(&el[1]).unwrap() as f32);
+                                for param in temp_args {
+                                    vec_args.push(str::parse::<usize>(&param[0]).unwrap() as f32 / str::parse::<usize>(&param[1]).unwrap() as f32);
                                 }
                                 let (f, l, v) = (vec_args[0], vec_args[1], vec_args[2]);
-                                let _ = &output.push(f0(f, l, v, 44100, &[]));
+                                (fs, ls, vs) = (fs*f, ls*l, v*vs);
+// TODO: fix parsing of rows
+                                output[i].push(f0(fs, ls, vs, 44100, &[]));
                             }
                         }
+                        //fn_status = (output.iter().flatten().count() / 44100) as f32;
+                        let max_len = output.iter().map(|it| it.iter().flatten().count()).max().unwrap_or(0);
+                        let mut out_vec = vec![0.0; max_len];
+                        for column in output {
+                            for (i, el) in column.iter().flatten().enumerate(){
+                                out_vec[i] += *el;
+                            }
+                        }
+                        let mut out_vec_iter = out_vec.into_iter();
+                    //let mut out_vec = output.into_iter().flatten().chain(core::iter::once(0.0).cycle());
+                    std::thread::spawn(move || {let _aud = run_output_device(audio_params, move |data| {
+                            for samples in data {
+                                    *samples = out_vec_iter.next().unwrap_or(0.0);
+
+                            }
+                        }
+                        ).unwrap();
+                        std::thread::sleep(std::time::Duration::from_secs(100));});
                     }
                 }
             }
-                   // KeyCode::Char('h') => {
-                   //     cursor.x = cursor.x.saturating_sub(1);
-                   // }
-                   // KeyCode::Char('j') => {
-                   //     cursor.y = cursor.y.saturating_add(1);
-                   // }
-                   // KeyCode::Char('k') => {
-                   //     cursor.y = cursor.y.saturating_sub(1);
-                   // }
-                   // KeyCode::Char('l') => {
-                   //     cursor.x = cursor.x.saturating_add(1);
-                   // }
-                   // KeyCode::Char('+') => {
-                   //     app.counter = app.counter.saturating_add(1);
-                   //     app.rows[0].push("7/9 1/2 1".into());
-                   //     app.constrains.push(Constraint::Max(10));
-                   // }
-                   // KeyCode::Char('-') => {
-                   //     app.counter = app.counter.saturating_sub(1);
-                   //     app.rows[0].pop();
-                   //     app.constrains.pop();
-                   // }
             _ => (),
-                }
+        }
     }
-        
-    
     stdout().execute(LeaveAlternateScreen)?;
     disable_raw_mode()?;
     Ok(())
