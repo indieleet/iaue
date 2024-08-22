@@ -2,7 +2,8 @@
                          let freq = t as f32 / f;
                          let length = l * t as f32;
                          (0..freq as usize)
-                         .map(|it| it as f32 / f - 0.5).map(|it| it * v)
+                         .map(|it| it as f32 / f - 0.5)
+                         .map(|it| it * v)
                          .cycle()
                          .take(length as usize)
                          .collect()

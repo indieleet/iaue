@@ -1,10 +1,10 @@
 use ratatui::{
     backend::CrosstermBackend,
     crossterm::{
-        cursor, event::{self, Event, KeyCode, KeyEvent, KeyModifiers}, style::Color, terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen}, ExecutableCommand
+        cursor, event::{self, Event, KeyCode, KeyEvent, KeyModifiers}, terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen}, ExecutableCommand
     },
     prelude::*,
-    style::Stylize, widgets::*, Terminal,
+    style::{Stylize, Color}, widgets::*, Terminal,
 };
 use style::Styled;
 use std::{default, io::{stdout, Result}};
@@ -70,7 +70,8 @@ fn main() -> Result<()> {
         current_times: "".into(),
         items: vec![Constraint::Percentage(30), Constraint::Fill(1)],
         rows: vec![
-            vec![vec![Span::from("1/8").to_owned(), Span::from("1/2").to_owned(), Span::from("1/2").to_owned()]],
+            vec![vec![Span::from("1/8").to_owned(), Span::from("1/2").to_owned(), Span::from("1/2").to_owned()], vec![Span::from("1/8").to_owned(), Span::from("1/2").to_owned(), Span::from("1/2").to_owned()]],
+            vec![vec![Span::from("3/2").to_owned(), Span::from("1/2").to_owned(), Span::from("1/1").to_owned()]],
         ],
         constrains: vec![Constraint::Max(3); 6],
     };
@@ -87,6 +88,7 @@ fn main() -> Result<()> {
         else { (visual_cursor.x, normal_cursor.x) };
         let (max_vy, min_vy) = if normal_cursor.y >= visual_cursor.y { (normal_cursor.y, visual_cursor.y) }
         else { (visual_cursor.y, normal_cursor.y) };
+        let mut rand_iter = core::iter::repeat_with(|| fastrand::u8(0..9));
         for (i_row, c_row) in table_rows.iter_mut().enumerate() {
             for (i_el, el) in c_row.iter_mut().enumerate() {
                 match current_mode {
@@ -130,12 +132,12 @@ fn main() -> Result<()> {
                 .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
                 .split(f.size());
             f.render_widget(
-                Block::new().bg(Color::Rgb { r: 0x22, g: 0x24, b: 0x36 }),
+                Block::new().bg(Color::Rgb(0x22,0x24,0x36)),
                 f.area()
                 );
             f.render_widget(
                 Table::new(
-                    table_rows.into_iter().enumerate().map(|(i, row)| if i == normal_cursor.y as usize { Row::new(row.into_iter().flatten().collect::<Vec<Span>>()).bg(Color::Rgb { r: 0x2f, g: 0x33, b: 0x4d }) }
+                    table_rows.into_iter().enumerate().map(|(i, row)| if i == normal_cursor.y as usize { Row::new(row.into_iter().flatten().collect::<Vec<Span>>()).bg(Color::Rgb(0x2f,0x33,0x4d)) }
                     else { Row::new(row.into_iter().flatten().collect::<Vec<Span>>()) }),
                     app.constrains.to_owned(),
                 )
@@ -228,6 +230,21 @@ fn main() -> Result<()> {
             {
                 current_mode = Mode::Insert;
                 let _ = &app.current_times.clear();
+            },
+            Event::Key(KeyEvent {
+                modifiers: KeyModifiers::NONE,
+                code: KeyCode::Char('r'),
+                ..
+            }) => 
+            {
+                match current_mode {
+                    Mode::Insert => { 
+                        let temp_cell = app.rows[normal_cursor.y as usize][normal_cursor.x as usize][insert_cursor.x as usize].clone();
+                        app.rows[normal_cursor.y as usize][normal_cursor.x as usize][insert_cursor.x as usize] = temp_cell.content(format!("{}/{}", rand_iter.next().unwrap(), rand_iter.next().unwrap()));
+                    },
+                    Mode::Normal => {},
+                    _ => ()
+                }
             },
             Event::Key(KeyEvent {
                 //modifiers: KeyModifiers::CONTROL,
@@ -377,7 +394,8 @@ fn main() -> Result<()> {
                          let freq = t as f32 / f;
                          let length = l * t as f32;
                          (0..freq as usize)
-                         .map(|it| it as f32 / f - 0.5).map(|it| it * v)
+                         .map(|it| it as f32 / f - 0.5)
+                         .map(|it| it * v)
                          .cycle()
                          .take(length as usize)
                          .collect()
@@ -396,7 +414,6 @@ fn main() -> Result<()> {
                     .stderr(Stdio::null())
                     .status()?;
                 let mut output: Vec<Vec<Vec<f32>>> = vec![Vec::with_capacity(app.rows.len()); app.rows.first().unwrap_or(&vec![]).iter().count()];
-                let (mut fs, mut ls, mut vs) = (440.0, 1.0, 1.0);
                 if comp_status.success() {
                     unsafe {
                         let lib = libloading::Library::new(lib_name).unwrap();
@@ -404,6 +421,7 @@ fn main() -> Result<()> {
                         unsafe extern "C" fn(f32, f32, f32, usize, &[f32]) -> Vec<f32>,
                         > = lib.get(b"f0").unwrap();
                         for row in &app.rows {
+                            let (mut fs, mut ls, mut vs) = (440.0, 1.0, 1.0);
                             for (i, el) in row.iter().enumerate() {
                                 let temp_args: Vec<Vec<String>> = el
                                     .iter()
