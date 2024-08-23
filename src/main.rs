@@ -63,7 +63,10 @@ impl Widget for TableWithCells<'_> {
             Self: Sized {
         let constr_x = ratatui::layout::Layout::default().direction(Direction::Vertical).constraints(vec![Constraint::Max(12); self.content.len()]).split(area);
         for (col_i, col) in self.content.iter().enumerate() {
-        let constr_y = ratatui::layout::Layout::default().direction(Direction::Horizontal).constraints(vec![Constraint::Max(1); col.len()]).split(constr_x[col_i]);
+            let constr_y = ratatui::layout::Layout::default().direction(Direction::Horizontal).constraints(vec![Constraint::Max(1); col.len()]).split(constr_x[col_i]);
+            for (i, el) in col {
+                buf.set_span(constr_y[i].x, constr_y[i].y, &el, 12)
+            }
         }
         //buf.set_string
     }
