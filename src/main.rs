@@ -61,11 +61,14 @@ impl Widget for TableWithCells<'_> {
     fn render(self, area: Rect, buf: &mut Buffer)
         where
             Self: Sized {
-        let constr_x = ratatui::layout::Layout::default().direction(Direction::Vertical).constraints(vec![Constraint::Max(12); self.content.len()]).split(area);
+        let constr_x = ratatui::layout::Layout::default().direction(Direction::Horizontal).constraints(vec![Constraint::Max(12); self.content.len()]).split(area);
         for (col_i, col) in self.content.iter().enumerate() {
-            let constr_y = ratatui::layout::Layout::default().direction(Direction::Horizontal).constraints(vec![Constraint::Max(1); col.len()]).split(constr_x[col_i]);
-            for (i, el) in col {
-                buf.set_span(constr_y[i].x, constr_y[i].y, &el, 12)
+            let constr_y = ratatui::layout::Layout::default().direction(Direction::Vertical).constraints(vec![Constraint::Max(1); col.len()]).split(constr_x[col_i]);
+            for (i, el) in col.iter().enumerate() {
+                let constr_c = layout::Layout::default().direction(Direction::Horizontal).constraints(vec![Constraint::Max(3); 3]).split(constr_y[i]);
+                for (ci, c) in el.iter().enumerate() { 
+                    buf.set_span(constr_c[ci].x, constr_c[ci].y, &c, 12);
+                }
             }
         }
         //buf.set_string
@@ -160,7 +163,7 @@ fn main() -> Result<()> {
                 );
             f.render_widget(
                 Table::new(
-                    table_rows.into_iter().enumerate().map(|(i, row)| if i == normal_cursor.y as usize { Row::new(row.into_iter().flatten().collect::<Vec<Span>>()).bg(Color::Rgb(0x2f,0x33,0x4d)) }
+                    table_rows.clone().into_iter().enumerate().map(|(i, row)| if i == normal_cursor.y as usize { Row::new(row.into_iter().flatten().collect::<Vec<Span>>()).bg(Color::Rgb(0x2f,0x33,0x4d)) }
                     else { Row::new(row.into_iter().flatten().collect::<Vec<Span>>()) }),
                     app.constrains.to_owned(),
                 )
@@ -174,12 +177,7 @@ fn main() -> Result<()> {
             //    }
             //}
             f.render_widget(
-                Table::new(
-                    table_rows.into_iter().enumerate().map(|(i, row)| if i == normal_cursor.y as usize { Row::new(row.into_iter().flatten().collect::<Vec<Span>>()).bg(Color::Rgb(0x2f,0x33,0x4d)) }
-                    else { Row::new(row.into_iter().flatten().collect::<Vec<Span>>()) }),
-                    app.constrains.to_owned(),
-                )
-                .block(Block::bordered()),
+                TableWithCells { content: table_rows },
                 size_x[1],
             );
             f.render_widget(mode_str, layout::Rect {
@@ -479,7 +477,7 @@ fn main() -> Result<()> {
                         let mut out_vec_iter = out_vec.into_iter();
                         fn_status = format!("{}, {}, {}, {}",
                             ft, lt, vt,
-                            (output.iter().flatten().flatten().count() / 44100) as f32);
+                            (max_len / 44100) as f32);
                     //let mut out_vec = output.into_iter().flatten().chain(core::iter::once(0.0).cycle());
                     std::thread::spawn(move || {
                             let _aud = run_output_device(audio_params, move |data| {
