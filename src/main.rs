@@ -6,8 +6,9 @@ use ratatui::{
     prelude::*,
     style::{Stylize, Color}, widgets::*, Terminal,
 };
+use ratatui::layout::Direction;
 use style::Styled;
-use std::{default, io::{stdout, Result}};
+use std::io::{stdout, Result};
 use std::process::{Command, Stdio};
 
 use tinyaudio::prelude::*;
@@ -52,6 +53,22 @@ struct VisualCursor {
     y: u16,
 }
 
+struct TableWithCells<'a> {
+    content: Vec<Vec<Vec<Span<'a>>>>,
+}
+
+impl Widget for TableWithCells<'_> {
+    fn render(self, area: Rect, buf: &mut Buffer)
+        where
+            Self: Sized {
+        let constr_x = ratatui::layout::Layout::default().direction(Direction::Vertical).constraints(vec![Constraint::Max(12); self.content.len()]).split(area);
+        for (col_i, col) in self.content.iter().enumerate() {
+        let constr_y = ratatui::layout::Layout::default().direction(Direction::Horizontal).constraints(vec![Constraint::Max(1); col.len()]).split(constr_x[col_i]);
+        }
+        //buf.set_string
+    }
+}
+
 fn main() -> Result<()> {
     stdout().execute(EnterAlternateScreen)?;
     enable_raw_mode()?;
@@ -75,7 +92,9 @@ fn main() -> Result<()> {
         ],
         constrains: vec![Constraint::Max(3); 6],
     };
-    let mut fn_status: f32 = 0.0;
+    let mut fn_status = String::new();
+    let cur_path = std::env::var("HOME").unwrap();
+    let cur_filename = "rust_lib.rs";
     let audio_params = OutputDeviceParameters {
     channels_count: 1,
     sample_rate: 44100,
@@ -83,6 +102,7 @@ fn main() -> Result<()> {
 };
     //let mut state = TableState::new();
     loop {
+        let full_path = cur_path.clone() + "/" + cur_filename;
         let mut table_rows = app.rows.to_owned();
         let (max_vx, min_vx) = if normal_cursor.x >= visual_cursor.x { (normal_cursor.x, visual_cursor.x) }
         else { (visual_cursor.x, normal_cursor.x) };
@@ -151,7 +171,12 @@ fn main() -> Result<()> {
             //    }
             //}
             f.render_widget(
-                Paragraph::new(format!("Hello {}", app.counter)).block(Block::bordered()),
+                Table::new(
+                    table_rows.into_iter().enumerate().map(|(i, row)| if i == normal_cursor.y as usize { Row::new(row.into_iter().flatten().collect::<Vec<Span>>()).bg(Color::Rgb(0x2f,0x33,0x4d)) }
+                    else { Row::new(row.into_iter().flatten().collect::<Vec<Span>>()) }),
+                    app.constrains.to_owned(),
+                )
+                .block(Block::bordered()),
                 size_x[1],
             );
             f.render_widget(mode_str, layout::Rect {
@@ -161,10 +186,10 @@ fn main() -> Result<()> {
                 height: 1
             }
             );
-            f.render_widget(format!("{}", fn_status).set_style(Modifier::REVERSED), layout::Rect {
+            f.render_widget(fn_status.clone().set_style(Modifier::REVERSED), layout::Rect {
                 x: 0,
                 y: app.y_bound - 2,
-                width: 3u16,
+                width: f.area().width,
                 height: 1
             }
             );
@@ -372,7 +397,9 @@ fn main() -> Result<()> {
                 stdout().execute(LeaveAlternateScreen)?;
                 disable_raw_mode()?;
 //.arg("/tmp/a.txt")
-                Command::new("nvim").status()?;
+                Command::new("nvim")
+                    .arg(full_path)
+                    .status()?;
                 stdout().execute(EnterAlternateScreen)?;
                 enable_raw_mode()?;
                 let _ = terminal.clear();
@@ -386,34 +413,35 @@ fn main() -> Result<()> {
             {
 
                 let lib_name = "./librust_lib.so";
-                let code_name = "rust_lib.rs";
-                let mut file = std::fs::File::create(code_name).expect("can't find file");
-                use std::io::Write;
-                file.write_all(
-                    r#"#[no_mangle] pub extern "C" fn f0(f: f32, l: f32, v: f32, t: usize, p: &[f32]) -> Vec<f32> {
-                         let freq = t as f32 / f;
-                         let length = l * t as f32;
-                         (0..freq as usize)
-                         .map(|it| it as f32 / f - 0.5)
-                         .map(|it| it * v)
-                         .cycle()
-                         .take(length as usize)
-                         .collect()
-                    }
-                    "#
-                        .as_bytes(),
-                )?;
-                drop(file);
+                //let mut file = std::fs::File::create(cur_filename).expect("can't find file");
+               //let mut file = std::fs::File::open(&full_path).expect("can't find file");
+               // use std::io::Write;
+               // file.write_all(
+               //     r#"#[no_mangle] pub extern "C" fn f0(f: f32, l: f32, v: f32, t: usize, p: &[f32]) -> Vec<f32> {
+               //          let freq = t as f32 / f;
+               //          let length = l * t as f32;
+               //          (0..freq as usize)
+               //          .map(|it| it as f32 / f - 0.5)
+               //          .map(|it| it * v)
+               //          .cycle()
+               //          .take(length as usize)
+               //          .collect()
+               //     }
+               //     "#
+               //         .as_bytes(),
+               // )?;
+               // drop(file);
                 let comp_status = std::process::Command::new("rustc")
                     .arg("-C")
                     .arg("target-feature=-crt-static")
                     .arg("--crate-type")
                     .arg("cdylib")
-                    .arg(code_name)
+                    .arg(full_path)
                     .stdout(Stdio::null())
                     .stderr(Stdio::null())
                     .status()?;
                 let mut output: Vec<Vec<Vec<f32>>> = vec![Vec::with_capacity(app.rows.len()); app.rows.first().unwrap_or(&vec![]).iter().count()];
+                let (mut ft, mut lt, mut vt) = (440.0, 1.0, 1.0);
                 if comp_status.success() {
                     unsafe {
                         let lib = libloading::Library::new(lib_name).unwrap();
@@ -434,10 +462,10 @@ fn main() -> Result<()> {
                                 }
                                 let (f, l, v) = (vec_args[0], vec_args[1], vec_args[2]);
                                 (fs, ls, vs) = (fs*f, ls*l, v*vs);
+                                (ft, lt, vt) = (fs*f, ls*l, v*vs);
                                 output[i].push(f0(fs, ls, vs, 44100, &[]));
                             }
                         }
-                        //fn_status = (output.iter().flatten().count() / 44100) as f32;
                         let max_len = output.iter().map(|it| it.iter().flatten().count()).max().unwrap_or(0);
                         let mut out_vec = vec![0.0; max_len];
                         for column in output {
@@ -446,6 +474,9 @@ fn main() -> Result<()> {
                             }
                         }
                         let mut out_vec_iter = out_vec.into_iter();
+                        fn_status = format!("{}, {}, {}, {}",
+                            ft, lt, vt,
+                            (output.iter().flatten().flatten().count() / 44100) as f32);
                     //let mut out_vec = output.into_iter().flatten().chain(core::iter::once(0.0).cycle());
                     std::thread::spawn(move || {
                             let _aud = run_output_device(audio_params, move |data| {
