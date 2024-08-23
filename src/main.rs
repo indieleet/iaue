@@ -8,7 +8,7 @@ use ratatui::{
 };
 use ratatui::layout::Direction;
 use style::Styled;
-use std::io::{stdout, Result};
+use std::{alloc::Layout, io::{stdout, Result}};
 use std::process::{Command, Stdio};
 
 use tinyaudio::prelude::*;
@@ -22,7 +22,7 @@ pub struct App<'a> {
     columns: u8,
     x_bound: u16,
     y_bound: u16,
-    rows: Vec<Vec<Vec<Span<'a>>>>,
+    cols: Vec<Vec<Vec<Span<'a>>>>,
     constrains: Vec<Constraint>,
 }
 
@@ -65,9 +65,9 @@ impl Widget for TableWithCells<'_> {
         for (col_i, col) in self.content.iter().enumerate() {
             let constr_y = ratatui::layout::Layout::default().direction(Direction::Vertical).constraints(vec![Constraint::Max(1); col.len()]).split(constr_x[col_i]);
             for (i, el) in col.iter().enumerate() {
-                let constr_c = layout::Layout::default().direction(Direction::Horizontal).constraints(vec![Constraint::Max(3); 3]).split(constr_y[i]);
+                let constr_c = layout::Layout::default().direction(Direction::Horizontal).constraints(vec![Constraint::Max(4); 3]).split(constr_y[i]);
                 for (ci, c) in el.iter().enumerate() { 
-                    buf.set_span(constr_c[ci].x, constr_c[ci].y, &c, 12);
+                    buf.set_span(constr_c[ci].x, constr_c[ci].y, c, 12);
                 }
             }
         }
@@ -92,7 +92,7 @@ fn main() -> Result<()> {
         y_bound: 0,
         current_times: "".into(),
         items: vec![Constraint::Percentage(30), Constraint::Fill(1)],
-        rows: vec![
+        cols: vec![
             vec![vec![Span::from("1/8").to_owned(), Span::from("1/2").to_owned(), Span::from("1/2").to_owned()], vec![Span::from("1/8").to_owned(), Span::from("1/2").to_owned(), Span::from("1/2").to_owned()]],
             vec![vec![Span::from("3/2").to_owned(), Span::from("1/2").to_owned(), Span::from("1/1").to_owned()]],
         ],
@@ -109,22 +109,22 @@ fn main() -> Result<()> {
     //let mut state = TableState::new();
     loop {
         let full_path = cur_path.clone() + "/" + cur_filename;
-        let mut table_rows = app.rows.to_owned();
+        let mut table_cols = app.cols.to_owned();
         let (max_vx, min_vx) = if normal_cursor.x >= visual_cursor.x { (normal_cursor.x, visual_cursor.x) }
         else { (visual_cursor.x, normal_cursor.x) };
         let (max_vy, min_vy) = if normal_cursor.y >= visual_cursor.y { (normal_cursor.y, visual_cursor.y) }
         else { (visual_cursor.y, normal_cursor.y) };
         let mut rand_iter = core::iter::repeat_with(|| fastrand::u8(0..9));
-        for (i_row, c_row) in table_rows.iter_mut().enumerate() {
-            for (i_el, el) in c_row.iter_mut().enumerate() {
+        for (i_col, c_col) in table_cols.iter_mut().enumerate() {
+            for (i_el, el) in c_col.iter_mut().enumerate() {
                 match current_mode {
-                    Mode::Normal if (normal_cursor.x as usize, normal_cursor.y as usize) == (i_el, i_row) => {
+                    Mode::Normal if (normal_cursor.y as usize, normal_cursor.x as usize) == (i_el, i_col) => {
                         *el = el.clone().into_iter().map(|it| it.add_modifier(Modifier::REVERSED)).collect();
                     },
-                    Mode::Visual if (i_el >= min_vx as usize && i_el <= max_vx as usize) && (i_row >= min_vy as usize && i_row <= max_vy as usize) => {
+                    Mode::Visual if (i_el >= min_vy as usize && i_el <= max_vy as usize) && (i_col >= min_vx as usize && i_col <= max_vx as usize) => {
                         *el = el.clone().into_iter().map(|it| it.add_modifier(Modifier::REVERSED)).collect();
                     },
-                    Mode::Insert if (normal_cursor.x as usize, normal_cursor.y as usize) == (i_el, i_row) => {
+                    Mode::Insert if (normal_cursor.y as usize, normal_cursor.x as usize) == (i_el, i_col) => {
                         *el = el.clone().into_iter().enumerate().map(|(i, it)| if i == insert_cursor.x as usize { it.add_modifier(Modifier::REVERSED) } else { it }).collect();
                     },
                     _ => ()
@@ -133,15 +133,15 @@ fn main() -> Result<()> {
         }
         //table_rows[normal_cursor.y as usize][normal_cursor.x as usize] = cur_cell_text;
         //let y_bound = core::iter::repeat_with(|| &app.rows.iter().next().unwrap_or(&Vec::<Span>::new()).get(normal_cursor.x as usize)).count();
-        let mut y_bound: u16 = 0;
-        for el in &app.rows {
-            if el.get(normal_cursor.x as usize).is_some() {
-                y_bound += 1;
-            }
-            else {
-                break;
-            }
-        }
+        let y_bound: u16 = app.cols[normal_cursor.x as usize].len() as u16;
+       // for el in &app.rows[normal_cursor.x as usize] {
+       //     if el.get(normal_cursor.x as usize).is_some() {
+       //         y_bound += 1;
+       //     }
+       //     else {
+       //         break;
+       //     }
+       // }
         //let x = Row::new(vec![vec![Span::from("1"), Span::from("1")]].iter().flatten().collect::Vec<Span>());
         let mode_str = match current_mode { 
             Mode::Normal => Span::from("Normal").bg(Color::Blue),
@@ -163,7 +163,7 @@ fn main() -> Result<()> {
                 );
             f.render_widget(
                 Table::new(
-                    table_rows.clone().into_iter().enumerate().map(|(i, row)| if i == normal_cursor.y as usize { Row::new(row.into_iter().flatten().collect::<Vec<Span>>()).bg(Color::Rgb(0x2f,0x33,0x4d)) }
+                    table_cols.clone().into_iter().enumerate().map(|(i, row)| if i == normal_cursor.y as usize { Row::new(row.into_iter().flatten().collect::<Vec<Span>>()).bg(Color::Rgb(0x2f,0x33,0x4d)) }
                     else { Row::new(row.into_iter().flatten().collect::<Vec<Span>>()) }),
                     app.constrains.to_owned(),
                 )
@@ -177,7 +177,11 @@ fn main() -> Result<()> {
             //    }
             //}
             f.render_widget(
-                TableWithCells { content: table_rows },
+                Block::bordered(),
+                size_x[1],
+            );
+            f.render_widget(
+                TableWithCells { content: table_cols },
                 size_x[1],
             );
             f.render_widget(mode_str, layout::Rect {
@@ -205,21 +209,10 @@ fn main() -> Result<()> {
                 },
 
             );
-            //f.render_widget(
-            //    " ".on_red(),
-            //    layout::Rect {
-            //        x: cursor.x,
-            //        y: cursor.y,
-            //        width: 1,
-            //        height: 1,
-            //    },
-            //)
         })?;
-        // TODO main loop
         let match_event = event::read()?;
         match match_event {
             Event::Key(KeyEvent {
-                //modifiers: KeyModifiers::CONTROL,
                 code: KeyCode::Char('q'),
                 ..
             }) => 
@@ -227,7 +220,6 @@ fn main() -> Result<()> {
                         break;
                     },
             Event::Key(KeyEvent {
-                //modifiers: KeyModifiers::CONTROL,
                 code: KeyCode::Char(matched_code @ '0'..='9'),
                 ..
             }) => 
@@ -239,7 +231,6 @@ fn main() -> Result<()> {
                 _ => ()
             },
             Event::Key(KeyEvent {
-                //modifiers: KeyModifiers::CONTROL,
                 code: KeyCode::Esc,
                 ..
             }) => 
@@ -249,7 +240,6 @@ fn main() -> Result<()> {
             },
 
             Event::Key(KeyEvent {
-                //modifiers: KeyModifiers::CONTROL,
                 code: KeyCode::Char('i'),
                 ..
             }) => 
@@ -265,15 +255,14 @@ fn main() -> Result<()> {
             {
                 match current_mode {
                     Mode::Insert => { 
-                        let temp_cell = app.rows[normal_cursor.y as usize][normal_cursor.x as usize][insert_cursor.x as usize].clone();
-                        app.rows[normal_cursor.y as usize][normal_cursor.x as usize][insert_cursor.x as usize] = temp_cell.content(format!("{}/{}", rand_iter.next().unwrap(), rand_iter.next().unwrap()));
+                        let temp_cell = app.cols[normal_cursor.x as usize][normal_cursor.y as usize][insert_cursor.x as usize].clone();
+                        app.cols[normal_cursor.x as usize][normal_cursor.y as usize][insert_cursor.x as usize] = temp_cell.content(format!("{}/{}", rand_iter.next().unwrap(), rand_iter.next().unwrap()));
                     },
                     Mode::Normal => {},
                     _ => ()
                 }
             },
             Event::Key(KeyEvent {
-                //modifiers: KeyModifiers::CONTROL,
                 code: KeyCode::Char('h') | KeyCode::Left,
                 ..
             }) => 
@@ -338,7 +327,7 @@ fn main() -> Result<()> {
                 let _ = &app.current_times.clear();
                 match current_mode {
                     Mode::Normal | Mode::Visual => { 
-                        let x_bound = app.rows[normal_cursor.y as usize].len() as u16;
+                        let x_bound = app.cols.len() as u16;
                         let new_x = normal_cursor.x.saturating_add(count);
                         normal_cursor.x = if new_x > x_bound - 1 { x_bound - 1 }
                             else { new_x };
@@ -367,21 +356,43 @@ fn main() -> Result<()> {
                 //    else { new_x };
             },
             Event::Key(KeyEvent {
-                //modifiers: KeyModifiers::CONTROL,
                 code: KeyCode::Char('+'),
                 ..
             }) => 
             {
-                let len_rows = app.rows[y_bound as usize - 1].len();
-                if (y_bound as usize) < app.rows.len() {
-                    app.rows[y_bound as usize].extend(vec![vec![Span::from("1/1");3]; (normal_cursor.x as usize + 1).saturating_sub(len_rows - 1)]); 
-                }
-                else {
-                    app.rows.push(vec![vec![Span::from("1/1"); 3]; normal_cursor.x as usize + 1]); 
-                }
+                    app.cols[normal_cursor.x as usize].push(vec![Span::from("1/1");3]);
+               // let len_rows = app.rows[y_bound as usize - 1].len();
+               // if (y_bound as usize) < app.rows.len() {
+               //     app.rows[y_bound as usize].extend(vec![vec![Span::from("1/1");3]; (normal_cursor.x as usize + 1).saturating_sub(len_rows - 1)]); 
+               // }
+               // else {
+               //     app.rows.push(vec![vec![Span::from("1/1"); 3]; normal_cursor.x as usize + 1]); 
+               // }
             },
             Event::Key(KeyEvent {
-                //modifiers: KeyModifiers::CONTROL,
+                code: KeyCode::Char('='),
+                ..
+            }) => 
+            {
+                app.cols.push(vec![vec![Span::from("1/1");3]]);
+            },
+            Event::Key(KeyEvent {
+                code: KeyCode::Char('d'),
+                ..
+            }) => 
+            {
+                if y_bound - 2 < normal_cursor.y { normal_cursor.y = normal_cursor.y.saturating_sub(1); } 
+                app.cols[normal_cursor.x as usize].remove(normal_cursor.y as usize);
+            },
+            Event::Key(KeyEvent {
+                code: KeyCode::Char('-'),
+                ..
+            }) => 
+            {
+                app.cols.remove(normal_cursor.x as usize);
+                normal_cursor.x = if app.cols.len() < normal_cursor.x as usize { app.cols.len() as u16 } else { normal_cursor.x };
+            },
+            Event::Key(KeyEvent {
                 code: KeyCode::Char('v'),
                 ..
             }) => 
@@ -397,14 +408,12 @@ fn main() -> Result<()> {
             { 
                 stdout().execute(LeaveAlternateScreen)?;
                 disable_raw_mode()?;
-//.arg("/tmp/a.txt")
                 Command::new("nvim")
                     .arg(full_path)
                     .status()?;
                 stdout().execute(EnterAlternateScreen)?;
                 enable_raw_mode()?;
                 let _ = terminal.clear();
-                //let mut terminal = Terminal::new(CrosstermBackend::new(stdout()))?;
             },
             Event::Key(KeyEvent {
                 modifiers: KeyModifiers::CONTROL,
@@ -441,7 +450,7 @@ fn main() -> Result<()> {
                     .stdout(Stdio::null())
                     .stderr(Stdio::null())
                     .status()?;
-                let mut output: Vec<Vec<Vec<f32>>> = vec![Vec::with_capacity(app.rows.len()); app.rows.first().unwrap_or(&vec![]).iter().count()];
+                let mut output: Vec<Vec<Vec<f32>>> = vec![Vec::new(); app.cols.len()];
                 let (mut ft, mut lt, mut vt) = (440.0, 1.0, 1.0);
                 if comp_status.success() {
                     unsafe {
@@ -449,9 +458,9 @@ fn main() -> Result<()> {
                         let f0: libloading::Symbol<
                         unsafe extern "C" fn(f32, f32, f32, usize, &[f32]) -> Vec<f32>,
                         > = lib.get(b"f0").unwrap();
-                        for row in &app.rows {
+                        for (i, col) in app.cols.iter().enumerate() {
                             let (mut fs, mut ls, mut vs) = (440.0, 1.0, 1.0);
-                            for (i, el) in row.iter().enumerate() {
+                            for (_, el) in col.iter().enumerate() {
                                 let temp_args: Vec<Vec<String>> = el
                                     .iter()
                                     .map(|it| it.to_string().split("/").map(String::from).collect::<Vec<String>>())
@@ -463,7 +472,7 @@ fn main() -> Result<()> {
                                 }
                                 let (f, l, v) = (vec_args[0], vec_args[1], vec_args[2]);
                                 (fs, ls, vs) = (fs*f, ls*l, v*vs);
-                                (ft, lt, vt) = (fs*f, ls*l, v*vs);
+                                (ft, lt, vt) = (fs*f, ls*l, v*vs); // TODO: REMOVE THIS
                                 output[i].push(f0(fs, ls, vs, 44100, &[]));
                             }
                         }
@@ -479,15 +488,15 @@ fn main() -> Result<()> {
                             ft, lt, vt,
                             (max_len / 44100) as f32);
                     //let mut out_vec = output.into_iter().flatten().chain(core::iter::once(0.0).cycle());
-                    std::thread::spawn(move || {
+                        std::thread::spawn(move || {
                             let _aud = run_output_device(audio_params, move |data| {
-                            for samples in data {
+                                for samples in data {
                                     *samples = out_vec_iter.next().unwrap_or(0.0);
 
+                                }
                             }
-                        }
-                        ).unwrap();
-                        std::thread::sleep(std::time::Duration::from_secs(100));});
+                            ).unwrap();
+                            std::thread::sleep(std::time::Duration::from_secs(100));});
                     }
                 }
             }
