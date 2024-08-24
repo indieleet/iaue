@@ -68,7 +68,7 @@ impl Widget for TableWithCells<'_> {
     {
         let constr_x = ratatui::layout::Layout::default()
             .direction(Direction::Horizontal)
-            .constraints(vec![Constraint::Max(12); self.content.len()])
+            .constraints(vec![Constraint::Max(14); self.content.len()])
             .split(area);
         for (col_i, col) in self.content.iter().enumerate() {
             let constr_y = ratatui::layout::Layout::default()
@@ -383,11 +383,11 @@ fn main() -> Result<()> {
                         insert_cursor.x = if new_cursor >= 0 {
                             new_cursor as u16
                         } else {
-                            (6 + new_cursor % 6) as u16
+                            (7 + new_cursor % 7) as u16
                         };
                         normal_cursor.x = normal_cursor
                             .x
-                            .saturating_sub(((new_cursor - 5) / 6).unsigned_abs() as u16);
+                            .saturating_sub(((new_cursor - 6) / 7).unsigned_abs() as u16);
                     }
                     Mode::Command => {
                         command_buf.push('h');
@@ -457,8 +457,8 @@ fn main() -> Result<()> {
                     }
                     Mode::Insert => {
                         let new_cursor = insert_cursor.x + count as u16;
-                        insert_cursor.x = (new_cursor) % 6;
-                        normal_cursor.x = normal_cursor.x.saturating_add(new_cursor / 6);
+                        insert_cursor.x = (new_cursor) % 7;
+                        normal_cursor.x = normal_cursor.x.saturating_add(new_cursor / 7);
                     }
 
                     Mode::Command => {
@@ -660,17 +660,23 @@ fn main() -> Result<()> {
                     }
                 }
                 let mut fns = std::collections::HashMap::new();
+                fn f1(f: f32, l: f32, v: f32, t: usize, p: &[f32]) -> Vec<f32>
+                {
+                    vec![0.0; (l * t as f32) as usize]
+                }
                 if comp_status.success() {
                     unsafe {
                         let lib = libloading::Library::new(lib_name).unwrap();
                         for el in unique_fn {
-                            fns.insert(el.clone(), lib.get::<libloading::Symbol<
-                            unsafe extern "C" fn(f32, f32, f32, usize, &[f32]) -> Vec<f32>,
-                        >>(("f".to_string() + &el).as_bytes()).unwrap());
+                        let f0 = lib.get::<libloading::Symbol<unsafe extern "C" fn(f32, f32, f32, usize, &[f32]) -> Vec<f32>>>(("f".to_string() + &el).as_bytes());
+                       // let f0: FnType = match f0_probe {
+                       //     Ok(val) => FnType::FnLib(val),
+                       //     Err(_) => FnType::Fn(f1)
+                       // };
+                            fns.insert(el.clone(), f0);
                         }
-                       // let f0: libloading::Symbol<
-                       //     unsafe extern "C" fn(f32, f32, f32, usize, &[f32]) -> Vec<f32>,
-                       // > = lib.get(b"f0").unwrap();
+                        //let f0_probe = lib.get(b"f0");
+
                         for (i, col) in app.cols.iter().enumerate() {
                             let (mut fs, mut ls, mut vs) = (440.0, 1.0, 1.0);
                             for el in col {
@@ -694,10 +700,15 @@ fn main() -> Result<()> {
                                 // for param in temp_args {
                                 //     vec_args.push(str::parse::<usize>(&param[0]).unwrap() as f32 / str::parse::<usize>(&param[1]).unwrap() as f32);
                                 //}
+                                
                                 let (f, l, v) = (vec_args[0], vec_args[1], vec_args[2]);
                                 (fs, ls, vs) = (fs * f, ls * l, v * vs);
                                 (ft, lt, vt) = (fs * f, ls * l, v * vs); // TODO: REMOVE THIS
-                                output[i].push(fns[&el[6].content.to_string()](fs, ls, vs, 44100, &[]));
+                                let pushed_fn = &fns[&el[6].content.to_string()];
+                                match pushed_fn {
+                                    Ok(val) => {output[i].push(val(fs, ls, vs, 44100, &[]));},
+                                    Err(_) => {output[i].push(f1(fs, ls, vs, 44100, &[]));},
+                                }
                             }
                         }
                         let max_len = output
