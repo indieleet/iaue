@@ -699,8 +699,8 @@ fn main() -> Result<()> {
                                 let mut vec_args = Vec::with_capacity(3);
                                 for indx in 0..3 {
                                     vec_args.push(
-                                        str::parse::<usize>(&elems[indx * 2].content).unwrap() as f32
-                                        / str::parse::<usize>(&elems[indx * 2 + 1].content) .unwrap() as f32,
+                                        str::parse::<usize>(&elems[indx * 2].content).unwrap_or(0) as f32
+                                        / str::parse::<usize>(&elems[indx * 2 + 1].content) .unwrap_or(0) as f32,
                                     );
                                 }
                                 
