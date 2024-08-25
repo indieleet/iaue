@@ -261,7 +261,6 @@ fn main() -> Result<()> {
                     height: 1,
                 },
             );
-            //len - 40│                                                                                                 │- - delete column                     │                                                                                                  │
             let lines_count = help::TEXT.lines().count() as u16 + 2;
             if app.is_help {
                 f.render_widget(
@@ -360,7 +359,6 @@ fn main() -> Result<()> {
                         app.normal_cursor.x = app.normal_cursor.x.saturating_sub(count);
                     }
                     Mode::Insert => {
-
                         let new_cursor_insert = app.insert_cursor.x as isize - count as isize;
                         let new_cursor_normal = app.normal_cursor.x as isize - (((new_cursor_insert - 6) / 7).abs());
                         if new_cursor_normal >= 0 {
@@ -520,7 +518,13 @@ fn main() -> Result<()> {
                 code: KeyCode::Char('d'),
                 ..
             }) => match app.current_mode {
-                Mode::Insert | Mode::Normal | Mode::Visual => {
+                Mode::Insert | Mode::Normal => {
+                    if y_bound - 2 < app.normal_cursor.y {
+                        app.normal_cursor.y = app.normal_cursor.y.saturating_sub(1);
+                    }
+                    app.cols[app.normal_cursor.x as usize].remove(app.normal_cursor.y as usize);
+                }, 
+                Mode::Visual => { 
                     if y_bound - 2 < app.normal_cursor.y {
                         app.normal_cursor.y = app.normal_cursor.y.saturating_sub(1);
                     }
