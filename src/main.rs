@@ -1,4 +1,5 @@
 mod help;
+
 use ratatui::layout::Direction;
 use ratatui::{
     backend::CrosstermBackend,
@@ -32,8 +33,9 @@ pub struct App<'a> {
     x_bound: u16,
     y_bound: u16,
     cols: Vec<Vec<Vec<Span<'a>>>>,
-    constrains: Vec<Constraint>,
+    //constrains: Vec<Constraint>,
     is_help: bool,
+    should_leave: bool,
 }
 
 #[derive(Debug)]
@@ -70,10 +72,15 @@ impl Widget for TableWithCells<'_> {
     where
         Self: Sized,
     {
+        let constr_col = Layout::horizontal(vec![Constraint::Max(1), Constraint::Min(1), Constraint::Max(1)])
+            .split(area);
+        let constr_rows = Layout::vertical(vec![Constraint::Max(1), Constraint::Min(1), Constraint::Max(1)])
+            .split(constr_col[1]);
+
         let constr_x = ratatui::layout::Layout::default()
             .direction(Direction::Horizontal)
             .constraints(vec![Constraint::Max(14); self.app.cols.len()])
-            .split(area);
+            .split(constr_rows[1]);
 
         let (max_vx, min_vx) = if self.app.normal_cursor.x >= self.app.visual_cursor.x {
             (self.app.normal_cursor.x, self.app.visual_cursor.x)
@@ -117,9 +124,70 @@ impl Widget for TableWithCells<'_> {
                 }
             }
         }
-
-
     }
+}
+
+fn open_file(app: &mut App, file_name: String) {
+    use std::fs::File;
+    use std::io::Read;
+
+    let full_path = std::path::Path::new(&app.file_path.clone()).join(&file_name);
+    let mut file = File::open(full_path);
+    match file {
+        Ok(ref mut val) => {
+            let mut data = String::new();
+            val.read_to_string(&mut data).unwrap();
+            app.cols = serde_json::from_str::<Vec<Vec<Vec<String>>>>(&data).unwrap().into_iter().map(|col| col.into_iter().map(|el| el.into_iter().map(Span::from).collect::<Vec<_>>()).collect::<Vec<_>>()).collect::<Vec<_>>();
+            app.normal_cursor.x = 0;
+            app.normal_cursor.y = 0;
+            app.visual_cursor.x = 0;
+            app.visual_cursor.y = 0;
+            app.insert_cursor.x = 0;
+            app.command_buf.clear();
+        }
+        Err(_) => { app.command_buf = format!("Can't find file {}.", file_name); }
+    }
+}
+
+fn save_file(app: &mut App, file_name: String) {
+    use std::fs::File;
+    use std::io::{BufWriter, Write};
+    let full_path = std::path::Path::new(&app.file_path.clone()).join(&file_name);
+    let file_cloned = &app.cols.clone().into_iter().map(|col| col.into_iter().map(|el| el.into_iter().map(|c| c.content).collect::<Vec<_>>()).collect::<Vec<_>>()).collect::<Vec<_>>();
+    let file = File::create(full_path).unwrap();
+    let mut writer = BufWriter::new(file);
+    serde_json::to_writer(&mut writer, &file_cloned).unwrap();
+    writer.flush().unwrap();
+}
+
+fn exec_command(app: &mut App) { 
+    let splitted_commands = app.command_buf[1..].split_whitespace().collect::<Vec<&str>>();
+    match *splitted_commands.first().unwrap() { 
+        "q" => { 
+            app.should_leave = true;
+            app.command_buf.clear();
+        },
+        "wq" => { 
+            app.command_buf = "Not yet implemented.".to_string(); //TODO:
+         },
+        "cd" => { 
+            app.file_path = splitted_commands[1..].join(" "); 
+            //TODO: only possible if dir exist
+        },
+        "pwd" => { 
+            app.command_buf = app.file_path.to_string();
+        },
+        "o" | "open" => { 
+            open_file(app, splitted_commands[1..].join(" "));
+        },
+        "s" | "save" => { 
+            save_file(app, splitted_commands[1..].join(" "));
+            app.command_buf.clear();
+        },
+        "e" | "edit" => { app.command_buf = "Not yet implemented.".to_string(); }, //TODO:
+        command => { app.command_buf = format!("Command '{}' not found.", command) }
+    }
+    app.current_mode = Mode::Normal;
 }
 
 fn main() -> Result<()> {
@@ -138,7 +206,7 @@ fn main() -> Result<()> {
             channel_sample_count: 4410,
         },
         command_buf: String::new(),
-        file_path: std::env::var("HOME").unwrap(),
+        file_path: std::env::var("PWD").unwrap_or("".to_string()),
         file_name: "rust_lib".to_string(),
         x_bound: 0,
         y_bound: 0,
@@ -147,8 +215,9 @@ fn main() -> Result<()> {
             vec![vec![Span::from("1").to_owned(); 7]; 3],
             vec![vec![Span::from("1").to_owned(); 7]; 1],
         ],
-        constrains: vec![Constraint::Max(3); 6],
+        //constrains: vec![Constraint::Max(3); 6],
         is_help: false,
+        should_leave: false,
     };
     let editor = std::env::var("EDITOR").unwrap_or("nvim".to_string());
     let mut rand_iter = core::iter::repeat_with(|| fastrand::u8(0..9));
@@ -156,7 +225,7 @@ fn main() -> Result<()> {
     let full_path_lib = std::path::Path::new(&app.file_path.clone()).join(app.file_name.clone() + ".rs");
     let full_path_file = std::path::Path::new(&app.file_path.clone()).join(app.file_name.clone() + ".tr");
     loop {
-        let table_cols = app.cols.to_owned();
+        //let table_cols = app.cols.to_owned();
         //table_rows[app.normal_cursor.y as usize][app.normal_cursor.x as usize] = cur_cell_text;
         //let y_bound = core::iter::repeat_with(|| &app.rows.iter().next().unwrap_or(&Vec::<Span>::new()).get(app.normal_cursor.x as usize)).count();
         let y_bound: u16 = app.cols[app.normal_cursor.x as usize].len() as u16;
@@ -179,38 +248,32 @@ fn main() -> Result<()> {
         terminal.draw(|f| {
             app.x_bound = f.area().width;
             app.y_bound = f.area().height;
-            let size_x = ratatui::layout::Layout::default()
-                .direction(Direction::Vertical)
-                .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
-                .split(f.area());
+           // let size_x = ratatui::layout::Layout::default()
+           //     .direction(Direction::Vertical)
+           //     .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+           //     .split(f.area());
             f.render_widget(Block::new().bg(Color::Rgb(0x22, 0x24, 0x36)), f.area());
-            f.render_widget(
-                Table::new(
-                    table_cols.clone().into_iter().enumerate().map(|(i, row)| {
-                        if i == app.normal_cursor.y as usize {
-                            Row::new(row.into_iter().flatten().collect::<Vec<Span>>())
-                                .bg(Color::Rgb(0x2f, 0x33, 0x4d))
-                        } else {
-                            Row::new(row.into_iter().flatten().collect::<Vec<Span>>())
-                        }
-                    }),
-                    app.constrains.to_owned(),
-                )
-                .block(Block::bordered()),
-                size_x[0],
-            );
-
-            //for (i_row, c_row) in app.rows.iter().enumerate() {
-            //    for (i_el, c_el) in c_row {
-            //        f.render_widget(c_el, app.constrains[i_row][i_el])
-            //    }
-            //}
-            f.render_widget(Block::bordered(), size_x[1]);
+           // f.render_widget(
+           //     Table::new(
+           //         table_cols.clone().into_iter().enumerate().map(|(i, row)| {
+           //             if i == app.normal_cursor.y as usize {
+           //                 Row::new(row.into_iter().flatten().collect::<Vec<Span>>())
+           //                     .bg(Color::Rgb(0x2f, 0x33, 0x4d))
+           //             } else {
+           //                 Row::new(row.into_iter().flatten().collect::<Vec<Span>>())
+           //             }
+           //         }),
+           //         app.constrains.to_owned(),
+           //     )
+           //     .block(Block::bordered()),
+           //     size_x[0],
+           // );
+            f.render_widget(Block::bordered(), f.area());
             f.render_widget(
                 TableWithCells {
                     app: &app
                 },
-                size_x[1],
+                f.area(),
             );
             f.render_widget(
                 format!(
@@ -281,7 +344,7 @@ fn main() -> Result<()> {
                 ..
             }) => match app.current_mode {
                 Mode::Visual | Mode::Normal | Mode::Insert => {
-                    break;
+                    app.should_leave = true;
                 }
                 Mode::Command => {
                     app.command_buf.push('q');
@@ -589,6 +652,7 @@ fn main() -> Result<()> {
             }) => match app.current_mode {
                 Mode::Insert | Mode::Normal | Mode::Visual => {
                     app.current_mode = Mode::Command;
+                    app.command_buf.clear();
                     app.command_buf.push(':');
                 }
                 Mode::Command => {
@@ -647,6 +711,16 @@ fn main() -> Result<()> {
                 app.visual_cursor.y = 0;
                 app.insert_cursor.x = 0;
 
+            }
+            
+            Event::Key(KeyEvent {
+                code: KeyCode::Enter,
+                ..
+            }) => {
+                match app.current_mode {
+                    Mode::Command => {exec_command(&mut app)},
+                    Mode::Normal | Mode::Insert | Mode::Visual => {}
+                }
             }
             Event::Key(KeyEvent {
                 modifiers: KeyModifiers::NONE | KeyModifiers::SHIFT,
@@ -745,6 +819,7 @@ fn main() -> Result<()> {
             }
             _ => (),
         }
+    if app.should_leave { break; };
     }
     stdout().execute(LeaveAlternateScreen)?;
     disable_raw_mode()?;

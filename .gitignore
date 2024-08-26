@@ -1,1 +1,4 @@
 target/
+librust_lib.so
+rust_lib.rs
+Cargo.lock
