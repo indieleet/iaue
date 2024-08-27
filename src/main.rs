@@ -17,8 +17,9 @@ use std::process::{Command, Stdio};
 use std::
     io::{stdout, Result};
 use style::Styled;
-
 use tinyaudio::prelude::*;
+use clap::{Parser, Subcommand};
+ 
 
 pub struct App<'a> {
     normal_cursor: NormalCursor,
@@ -127,6 +128,24 @@ impl Widget for TableWithCells<'_> {
     }
 }
 
+#[derive(Parser)]
+#[command(version, about, long_about = None)]
+struct Cli {
+    path: Option<String>,
+
+    #[command(subcommand)]
+    command: Option<Commands>,
+}
+#[derive(Subcommand)]
+enum Commands {
+    ///Render file to wav format
+    Render { 
+        file_path: Option<String>,
+        output_path: Option<String>,
+    }
+}
+
+
 fn open_file(app: &mut App, file_name: String) {
     use std::fs::File;
     use std::io::Read;
@@ -190,7 +209,7 @@ fn exec_command(app: &mut App) {
     app.current_mode = Mode::Normal;
 }
 
-fn main() -> Result<()> {
+fn start_app(working_file: &str) -> Result<()> {
     stdout().execute(EnterAlternateScreen)?;
     enable_raw_mode()?;
     let mut terminal = Terminal::new(CrosstermBackend::new(stdout()))?;
@@ -206,8 +225,8 @@ fn main() -> Result<()> {
             channel_sample_count: 4410,
         },
         command_buf: String::new(),
-        file_path: std::env::var("PWD").unwrap_or("".to_string()),
-        file_name: "rust_lib".to_string(),
+        file_path: std::env::current_dir().unwrap().to_str().unwrap_or("").to_string(),
+        file_name: working_file.to_string(),
         x_bound: 0,
         y_bound: 0,
         current_times: String::new(),
@@ -824,4 +843,21 @@ fn main() -> Result<()> {
     stdout().execute(LeaveAlternateScreen)?;
     disable_raw_mode()?;
     Ok(())
+}
+fn main()  {
+    let cli = Cli::parse();
+
+    use std::path::Path;
+    let mut working_file: &str = "";
+    if let Some(path) = cli.path.as_deref() {
+        if std::path::Path::new(path).is_dir() {
+            let _ = std::env::set_current_dir(path); }
+        else { 
+            let path = Path::new(path);
+            working_file = path.file_name().unwrap_or_default().to_str().unwrap_or_default();
+            let _ = std::env::set_current_dir(path.parent().unwrap_or(Path::new("/"))); 
+        };
+    }
+
+    let _ = start_app(working_file);
 }

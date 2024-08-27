@@ -10,7 +10,7 @@ TODO
 - [ ] make = work in visual mode
 - [ ] add yanking
 - [ ] add pasting
-- [ ] add support for cli
+- [x] add support for cli
 - [ ] add multitabs
 - [ ] dawproject file export
 - [ ] add init values
