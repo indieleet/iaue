@@ -1,13 +1,13 @@
 mod help;
 
+use crossterm::{
+    event::{self, Event, KeyCode, KeyEvent, KeyModifiers},
+    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+    ExecutableCommand,
+};
 use ratatui::layout::Direction;
 use ratatui::{
     backend::CrosstermBackend,
-    crossterm::{
-        event::{self, Event, KeyCode, KeyEvent, KeyModifiers},
-        terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
-        ExecutableCommand,
-    },
     prelude::*,
     style::{Color, Stylize},
     widgets::*,
@@ -29,7 +29,7 @@ pub struct App<'a> {
     current_mode: Mode,
     audio_params: OutputDeviceParameters,
     command_buf: String,
-    file_path: String,
+    //file_path: String,
     file_name: String,
     x_bound: u16,
     y_bound: u16,
@@ -75,7 +75,7 @@ impl Widget for TableWithCells<'_> {
     {
         let constr_col = Layout::horizontal(vec![Constraint::Max(1), Constraint::Min(1), Constraint::Max(1)])
             .split(area);
-        let constr_rows = Layout::vertical(vec![Constraint::Max(1), Constraint::Min(1), Constraint::Max(1)])
+        let constr_rows = Layout::vertical(vec![Constraint::Max(1), Constraint::Min(1), Constraint::Max(3)])
             .split(constr_col[1]);
 
         let constr_x = ratatui::layout::Layout::default()
@@ -94,6 +94,10 @@ impl Widget for TableWithCells<'_> {
             (self.app.visual_cursor.y, self.app.normal_cursor.y)
         };
 
+        match self.app.current_mode { 
+            Mode::Normal | Mode::Insert => { buf.set_span(constr_col[1].x, self.app.normal_cursor.y + constr_rows[1].y, &Span::from(" ".repeat(area.width as usize)).bg(Color::Gray), area.width - 2); },
+            _ => {}
+}
         for (col_i, col) in self.app.cols.iter().enumerate() {
             let constr_y = ratatui::layout::Layout::default()
                 .direction(Direction::Vertical)
@@ -149,8 +153,19 @@ enum Commands {
 fn open_file(app: &mut App, file_name: String) {
     use std::fs::File;
     use std::io::Read;
+    //use std::env::current_dir;
+    use std::path::Path;
+    let new_file = match Path::new(&file_name).canonicalize() {
+        Ok(value) => value,
+        Err(_) => { app.command_buf = format!("Can't find file {}.", file_name); return; }
 
-    let full_path = std::path::Path::new(&app.file_path.clone()).join(&file_name);
+    };
+    let full_path = match new_file.is_file() {
+        true => { new_file },
+        false => { new_file.join(&app.file_name) }
+    };
+    let _ = std::env::set_current_dir(full_path.parent().unwrap());
+    app.file_name = full_path.file_name().unwrap().to_str().unwrap().split(".").next().unwrap().to_string();
     let mut file = File::open(full_path);
     match file {
         Ok(ref mut val) => {
@@ -171,7 +186,16 @@ fn open_file(app: &mut App, file_name: String) {
 fn save_file(app: &mut App, file_name: String) {
     use std::fs::File;
     use std::io::{BufWriter, Write};
-    let full_path = std::path::Path::new(&app.file_path.clone()).join(&file_name);
+    use std::path::Path;
+    use std::path::absolute;
+    let new_file = absolute(Path::new(&file_name)).unwrap().to_path_buf();
+    let full_path = match new_file.is_file() {
+        true => { new_file.to_path_buf() },
+        false => { new_file.join(&app.file_name) }
+    };
+    let _ = std::env::set_current_dir(full_path.parent().unwrap());
+    app.file_name = full_path.file_name().unwrap().to_str().unwrap().split(".").next().unwrap().to_string();
+    let full_path = std::path::Path::new(&std::env::current_dir().unwrap().to_str().unwrap_or("/")).join(&file_name);
     let file_cloned = &app.cols.clone().into_iter().map(|col| col.into_iter().map(|el| el.into_iter().map(|c| c.content).collect::<Vec<_>>()).collect::<Vec<_>>()).collect::<Vec<_>>();
     let file = File::create(full_path).unwrap();
     let mut writer = BufWriter::new(file);
@@ -190,11 +214,16 @@ fn exec_command(app: &mut App) {
             app.command_buf = "Not yet implemented.".to_string(); //TODO:
          },
         "cd" => { 
-            app.file_path = splitted_commands[1..].join(" "); 
+            if std::env::set_current_dir(splitted_commands[1..].join(" ")).is_err() {
+                app.command_buf = format!("Can't find dir {}.", splitted_commands[1..].join(" ")); 
+            }
             //TODO: only possible if dir exist
         },
         "pwd" => { 
-            app.command_buf = app.file_path.to_string();
+            app.command_buf = std::env::current_dir().unwrap().to_str().unwrap_or("/").to_string();
+        },
+        "cf" => { 
+            app.file_name = splitted_commands[1..].join(" ").split('.').next().unwrap().to_string();
         },
         "o" | "open" => { 
             open_file(app, splitted_commands[1..].join(" "));
@@ -225,7 +254,7 @@ fn start_app(working_file: &str) -> Result<()> {
             channel_sample_count: 4410,
         },
         command_buf: String::new(),
-        file_path: std::env::current_dir().unwrap().to_str().unwrap_or("").to_string(),
+        //file_path: std::env::current_dir().unwrap().to_str().unwrap_or("/").to_string(),
         file_name: working_file.to_string(),
         x_bound: 0,
         y_bound: 0,
@@ -241,8 +270,8 @@ fn start_app(working_file: &str) -> Result<()> {
     let editor = std::env::var("EDITOR").unwrap_or("nvim".to_string());
     let mut rand_iter = core::iter::repeat_with(|| fastrand::u8(0..9));
     let mut fn_status = String::new();
-    let full_path_lib = std::path::Path::new(&app.file_path.clone()).join(app.file_name.clone() + ".rs");
-    let full_path_file = std::path::Path::new(&app.file_path.clone()).join(app.file_name.clone() + ".tr");
+    let full_path_lib = std::path::Path::new(&std::env::current_dir().unwrap().to_str().unwrap_or("/")).join(app.file_name.clone() + ".rs");
+    let full_path_file = std::path::Path::new(&std::env::current_dir().unwrap().to_str().unwrap_or("/")).join(app.file_name.clone() + ".tr");
     loop {
         //let table_cols = app.cols.to_owned();
         //table_rows[app.normal_cursor.y as usize][app.normal_cursor.x as usize] = cur_cell_text;
@@ -287,7 +316,12 @@ fn start_app(working_file: &str) -> Result<()> {
            //     .block(Block::bordered()),
            //     size_x[0],
            // );
-            f.render_widget(Block::bordered(), f.area());
+            f.render_widget(Block::bordered(), layout::Rect {
+                x: f.area().x,
+                y: f.area().y,
+                width: f.area().width,
+                height: f.area().height - 2
+            });
             f.render_widget(
                 TableWithCells {
                     app: &app
@@ -756,6 +790,7 @@ fn start_app(working_file: &str) -> Result<()> {
                 code: KeyCode::Char('r'),
                 ..
             }) => {
+                let full_path_lib = std::env::current_dir().unwrap().join(app.file_name.clone() + ".rs");
                 let lib_name = "./librust_lib.so";
                 let comp_status = std::process::Command::new("rustc")
                     .arg("-C")
@@ -848,7 +883,7 @@ fn main()  {
     let cli = Cli::parse();
 
     use std::path::Path;
-    let mut working_file: &str = "";
+    let mut working_file: &str = "project";
     if let Some(path) = cli.path.as_deref() {
         if std::path::Path::new(path).is_dir() {
             let _ = std::env::set_current_dir(path); }
