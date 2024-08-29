@@ -9,18 +9,45 @@ use ratatui::layout::Direction;
 use ratatui::{
     backend::CrosstermBackend,
     prelude::*,
-    style::{Color, Stylize},
+    style:: Stylize,
     widgets::*,
     Terminal,
 };
-use std::process::{Command, Stdio};
+use std::{fs, io::{Read, Write}, process::{Command, Stdio}};
 use std::
     io::{stdout, Result};
+use std::collections::HashMap;
 use style::Styled;
 use tinyaudio::prelude::*;
 use clap::{Parser, Subcommand};
+//use serde::{Serialize, Deserialize};
  
+//#[derive(Serialize, Deserialize)]
+//#[serde(tag = "type")]
+//enum JsonColor {
+//    Color(String)
+//}
 
+//type JsonColor = String;
+//impl Into<ratatui::style::Color> for JsonColor {
+//    fn into(self) -> ratatui::style::Color {
+//        match self { 
+//            JsonColor::Color(val) => {
+//                ratatui::style::Color::from_u32(u32::from_str_radix(&val[1..], 16).unwrap())
+//            }
+//        }
+//    }
+//}
+
+//impl From<String> for JsonColor {
+//    fn into(self) -> ratatui::style::Color {
+//        match self { 
+//            JsonColor::Color(val) => {
+//                ratatui::style::Color::from_u32(u32::from_str_radix(&val[1..], 16).unwrap())
+//            }
+//        }
+//    }
+//}
 pub struct App<'a> {
     normal_cursor: NormalCursor,
     insert_cursor: InsertCursor,
@@ -31,6 +58,7 @@ pub struct App<'a> {
     command_buf: String,
     //file_path: String,
     file_name: String,
+    theme: HashMap<String, style::Color>,
     x_bound: u16,
     y_bound: u16,
     cols: Vec<Vec<Vec<Span<'a>>>>,
@@ -95,7 +123,7 @@ impl Widget for TableWithCells<'_> {
         };
 
         match self.app.current_mode { 
-            Mode::Normal | Mode::Insert => { buf.set_span(constr_col[1].x, self.app.normal_cursor.y + constr_rows[1].y, &Span::from(" ".repeat(area.width as usize)).bg(Color::Gray), area.width - 2); },
+            Mode::Normal | Mode::Insert => { buf.set_span(constr_col[1].x, self.app.normal_cursor.y + constr_rows[1].y, &Span::from(" ".repeat(area.width as usize)).bg(self.app.theme["bg_highlight"]), area.width - 2); },
             _ => {}
 }
         for (col_i, col) in self.app.cols.iter().enumerate() {
@@ -239,6 +267,63 @@ fn exec_command(app: &mut App) {
 }
 
 fn start_app(working_file: &str) -> Result<()> {
+    let mut config_raw_text = String::new();
+    let config_path = home::home_dir().unwrap().join(".config").join("iaue").join("theme.json");
+    if !home::home_dir().unwrap().exists() {
+        let _ = fs::create_dir(home::home_dir().unwrap());
+    };
+    if !config_path.parent().unwrap()
+        .parent().unwrap().exists() {
+        let _ = fs::create_dir(config_path.parent().unwrap()
+        .parent().unwrap());
+    };
+    if !config_path.parent().unwrap().exists() {
+        let _ = fs::create_dir(config_path.parent().unwrap());
+    };
+    if !config_path.exists() {
+        let mut new_config = fs::File::create_new(&config_path).unwrap();
+        let _ = new_config.write_all(r###"
+{
+	"bg": "#222436",
+	"bg_dark": "#1e2030",
+	"bg_highlight": "#2f334d",
+	"blue": "#82aaff",
+	"blue0": "#3e68d7",
+	"blue1": "#65bcff",
+	"blue2": "#0db9d7",
+	"blue5": "#89ddff",
+	"blue6": "#b4f9f8",
+	"blue7": "#394b70",
+	"comment": "#636da6",
+	"cyan": "#86e1fc",
+	"dark3": "#545c7e",
+	"dark5": "#737aa2",
+	"fg": "#c8d3f5",
+	"fg_dark": "#828bb8",
+	"fg_gutter": "#3b4261",
+	"green": "#c3e88d",
+	"green1": "#4fd6be",
+	"green2": "#41a6b5",
+	"magenta": "#c099ff",
+	"magenta2": "#ff007c",
+	"orange": "#ff966c",
+	"purple": "#fca7ea",
+	"red": "#ff757f",
+	"red1": "#c53b53",
+	"teal": "#4fd6be",
+	"terminal_black": "#444a73",
+	"yellow": "#ffc777",
+	"add": "#b8db87",
+	"change": "#7ca1f2",
+	"delete": "#e26a75"
+    };
+"###.as_bytes());
+    };
+    let mut config_file = std::fs::File::open(config_path).unwrap();
+    let _ = config_file.read_to_string(&mut config_raw_text);
+    let config_file: HashMap<String, style::Color>= serde_json::from_str::<HashMap<String, String>>(&config_raw_text).unwrap()
+        .into_iter()
+    .map(|(key,val)| (key, ratatui::style::Color::from_u32(u32::from_str_radix(&val[1..], 16).unwrap()))).collect();
     stdout().execute(EnterAlternateScreen)?;
     enable_raw_mode()?;
     let mut terminal = Terminal::new(CrosstermBackend::new(stdout()))?;
@@ -256,6 +341,7 @@ fn start_app(working_file: &str) -> Result<()> {
         command_buf: String::new(),
         //file_path: std::env::current_dir().unwrap().to_str().unwrap_or("/").to_string(),
         file_name: working_file.to_string(),
+        theme: config_file,
         x_bound: 0,
         y_bound: 0,
         current_times: String::new(),
@@ -287,10 +373,10 @@ fn start_app(working_file: &str) -> Result<()> {
         // }
         //let x = Row::new(vec![vec![Span::from("1"), Span::from("1")]].iter().flatten().collect::Vec<Span>());
         let mode_str = match app.current_mode {
-            Mode::Normal => Span::from("Normal").bg(Color::Blue),
-            Mode::Visual => Span::from("Visual").bg(Color::Magenta),
-            Mode::Insert => Span::from("Insert").bg(Color::Green),
-            Mode::Command => Span::from("Command").bg(Color::Yellow),
+            Mode::Normal => Span::from("Normal").bg(app.theme["blue"]),
+            Mode::Visual => Span::from("Visual").bg(app.theme["magenta"]),
+            Mode::Insert => Span::from("Insert").bg(app.theme["green"]),
+            Mode::Command => Span::from("Command").bg(app.theme["orange"]),
         };
         let mode_str_width = mode_str.to_string().len() as u16;
         terminal.draw(|f| {
@@ -300,7 +386,7 @@ fn start_app(working_file: &str) -> Result<()> {
            //     .direction(Direction::Vertical)
            //     .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
            //     .split(f.area());
-            f.render_widget(Block::new().bg(Color::Rgb(0x22, 0x24, 0x36)), f.area());
+            f.render_widget(Block::new().bg(app.theme["bg"]), f.area());
            // f.render_widget(
            //     Table::new(
            //         table_cols.clone().into_iter().enumerate().map(|(i, row)| {
