@@ -1,4 +1,5 @@
 mod help;
+mod init_config;
 
 use crossterm::{
     event::{self, Event, KeyCode, KeyEvent, KeyModifiers},
@@ -9,7 +10,7 @@ use ratatui::layout::Direction;
 use ratatui::{
     backend::CrosstermBackend,
     prelude::*,
-    style:: Stylize,
+    style::Stylize,
     widgets::*,
     Terminal,
 };
@@ -20,34 +21,17 @@ use std::collections::HashMap;
 use style::Styled;
 use tinyaudio::prelude::*;
 use clap::{Parser, Subcommand};
-//use serde::{Serialize, Deserialize};
- 
-//#[derive(Serialize, Deserialize)]
-//#[serde(tag = "type")]
-//enum JsonColor {
-//    Color(String)
-//}
+use serde::{Serialize, Deserialize};
 
-//type JsonColor = String;
-//impl Into<ratatui::style::Color> for JsonColor {
-//    fn into(self) -> ratatui::style::Color {
-//        match self { 
-//            JsonColor::Color(val) => {
-//                ratatui::style::Color::from_u32(u32::from_str_radix(&val[1..], 16).unwrap())
-//            }
-//        }
-//    }
-//}
+#[derive(Serialize, Deserialize)]
+struct JsonColor(String);
 
-//impl From<String> for JsonColor {
-//    fn into(self) -> ratatui::style::Color {
-//        match self { 
-//            JsonColor::Color(val) => {
-//                ratatui::style::Color::from_u32(u32::from_str_radix(&val[1..], 16).unwrap())
-//            }
-//        }
-//    }
-//}
+impl From<JsonColor> for ratatui::style::Color {
+    fn from(item: JsonColor) -> Self {
+        ratatui::style::Color::from_u32(u32::from_str_radix(&item.0[1..], 16).unwrap())
+    }
+}
+
 pub struct App<'a> {
     normal_cursor: NormalCursor,
     insert_cursor: InsertCursor,
@@ -145,13 +129,13 @@ impl Widget for TableWithCells<'_> {
                         _ => { (Modifier::default(), Modifier::default()) } 
                     };
                     buf.set_span(constr_c[ci].x, constr_c[ci].y, &c.clone().set_style(cell_style), 12);
-                    match ci {
-                        0 | 2 | 4 => {
+                    match ci%2 {
+                        0 if i > 1 => {
                             buf.set_span(constr_c[ci].x + 1, constr_c[ci].y, &Span::from("/").set_style(inside_style), 1);
-                        }
-                        1 | 3 | 5 => {
+                        },
+                        1 if i > 1=> {
                             buf.set_span(constr_c[ci].x + 1, constr_c[ci].y, &Span::from(" ").set_style(inside_style), 1);
-                        }
+                        },
                         _ => (),
                     }
                 }
@@ -282,48 +266,13 @@ fn start_app(working_file: &str) -> Result<()> {
     };
     if !config_path.exists() {
         let mut new_config = fs::File::create_new(&config_path).unwrap();
-        let _ = new_config.write_all(r###"
-{
-	"bg": "#222436",
-	"bg_dark": "#1e2030",
-	"bg_highlight": "#2f334d",
-	"blue": "#82aaff",
-	"blue0": "#3e68d7",
-	"blue1": "#65bcff",
-	"blue2": "#0db9d7",
-	"blue5": "#89ddff",
-	"blue6": "#b4f9f8",
-	"blue7": "#394b70",
-	"comment": "#636da6",
-	"cyan": "#86e1fc",
-	"dark3": "#545c7e",
-	"dark5": "#737aa2",
-	"fg": "#c8d3f5",
-	"fg_dark": "#828bb8",
-	"fg_gutter": "#3b4261",
-	"green": "#c3e88d",
-	"green1": "#4fd6be",
-	"green2": "#41a6b5",
-	"magenta": "#c099ff",
-	"magenta2": "#ff007c",
-	"orange": "#ff966c",
-	"purple": "#fca7ea",
-	"red": "#ff757f",
-	"red1": "#c53b53",
-	"teal": "#4fd6be",
-	"terminal_black": "#444a73",
-	"yellow": "#ffc777",
-	"add": "#b8db87",
-	"change": "#7ca1f2",
-	"delete": "#e26a75"
-    };
-"###.as_bytes());
+        let _ = new_config.write_all(init_config::INIT_CONFIG.as_bytes());
     };
     let mut config_file = std::fs::File::open(config_path).unwrap();
     let _ = config_file.read_to_string(&mut config_raw_text);
-    let config_file: HashMap<String, style::Color>= serde_json::from_str::<HashMap<String, String>>(&config_raw_text).unwrap()
+    let config_file: HashMap<String, style::Color>= serde_json::from_str::<HashMap<String, JsonColor>>(&config_raw_text).unwrap()
         .into_iter()
-    .map(|(key,val)| (key, ratatui::style::Color::from_u32(u32::from_str_radix(&val[1..], 16).unwrap()))).collect();
+        .map(|(key,val)| (key, val.into())).collect();
     stdout().execute(EnterAlternateScreen)?;
     enable_raw_mode()?;
     let mut terminal = Terminal::new(CrosstermBackend::new(stdout()))?;
@@ -346,8 +295,8 @@ fn start_app(working_file: &str) -> Result<()> {
         y_bound: 0,
         current_times: String::new(),
         cols: vec![
-            vec![vec![Span::from("1").to_owned(); 7]; 3],
-            vec![vec![Span::from("1").to_owned(); 7]; 1],
+            vec![vec![Span::from("name").to_owned()], vec![Span::from("440").to_owned(), Span::from("1").to_owned(), Span::from("1").to_owned()], vec![Span::from("1").to_owned(); 7], vec![Span::from("1").to_owned(); 7]],
+            vec![vec![Span::from("name").to_owned()], vec![Span::from("440").to_owned(), Span::from("1").to_owned(), Span::from("1").to_owned()], vec![Span::from("1").to_owned(); 7]],
         ],
         //constrains: vec![Constraint::Max(3); 6],
         is_help: false,
@@ -562,12 +511,13 @@ fn start_app(working_file: &str) -> Result<()> {
                     }
                     Mode::Insert => {
                         let new_cursor_insert = app.insert_cursor.x as isize - count as isize;
-                        let new_cursor_normal = app.normal_cursor.x as isize - (((new_cursor_insert - 6) / 7).abs());
+                        let insert_bound = if app.normal_cursor.y == 0 { 1 } else if app.normal_cursor.y == 1 { 3 } else { 7 };
+                        let new_cursor_normal = app.normal_cursor.x as isize - (((new_cursor_insert - insert_bound + 1) / insert_bound).abs());
                         if new_cursor_normal >= 0 {
                             app.insert_cursor.x = if new_cursor_insert >= 0 {
                                 new_cursor_insert as u16
                             } else {
-                                    (7 + new_cursor_insert % 7) as u16
+                                    (insert_bound + new_cursor_insert % insert_bound) as u16
                                 };
                             app.normal_cursor.x = new_cursor_normal as u16;
                         }
@@ -643,14 +593,15 @@ fn start_app(working_file: &str) -> Result<()> {
                         };
                     }
                     Mode::Insert => {
+                        let insert_bound = if app.normal_cursor.y == 0 { 1 } else if app.normal_cursor.y == 1 { 3 } else { 7 };
                         let new_cursor_insert = app.insert_cursor.x + count as u16;
-                        let new_cursor_normal = app.normal_cursor.x.saturating_add(new_cursor_insert / 7);
+                        let new_cursor_normal = app.normal_cursor.x.saturating_add(new_cursor_insert / insert_bound);
                         if new_cursor_normal < app.cols.len() as u16 {
-                            app.insert_cursor.x = (new_cursor_insert) % 7;
+                            app.insert_cursor.x = (new_cursor_insert) % insert_bound;
                             app.normal_cursor.x = new_cursor_normal;
                         }
                         else {
-                            app.insert_cursor.x = 6;
+                            app.insert_cursor.x = insert_bound - 1;
                             app.normal_cursor.x = app.cols.len() as u16 - 1;
                         }
                     }
