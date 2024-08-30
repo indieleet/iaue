@@ -802,7 +802,6 @@ fn start_app(working_file: &str) -> Result<()> {
                 app.insert_cursor.x = 0;
 
             }
-            
             Event::Key(KeyEvent {
                 code: KeyCode::Enter,
                 ..
@@ -863,7 +862,10 @@ fn start_app(working_file: &str) -> Result<()> {
 
                         for (i, col) in app.cols.iter().enumerate() {
                             let (mut fs, mut ls, mut vs) = (440.0, 1.0, 1.0);
-                            for el in col {
+                            for (i_el, el) in col.iter().enumerate() {
+                                    if i_el == 0 { continue; }
+                                    if i_el == 1 { continue; }
+                                    else {
                                 let elems: Vec<_> = el.iter().take(6).clone().collect();
                                 let mut vec_args = Vec::with_capacity(3);
                                 for indx in 0..3 {
@@ -872,7 +874,6 @@ fn start_app(working_file: &str) -> Result<()> {
                                         / str::parse::<usize>(&elems[indx * 2 + 1].content) .unwrap_or(0) as f32,
                                     );
                                 }
-                                
                                 let (f, l, v) = (vec_args[0], vec_args[1], vec_args[2]);
                                 (fs, ls, vs) = (fs * f, ls * l, v * vs);
                                 (ft, lt, vt) = (fs * f, ls * l, v * vs); // TODO: REMOVE THIS
@@ -882,7 +883,7 @@ fn start_app(working_file: &str) -> Result<()> {
                                     Err(_) => {output[i].push(f1(fs, ls, vs, 44100, &[]));},
                                 }
                             }
-                        }
+                                }}
                         let max_len = output
                             .iter()
                             .map(|it| it.iter().flatten().count())

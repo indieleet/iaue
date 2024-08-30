@@ -34,3 +34,5 @@ TODO
 - [ ] sunvox support
 - [ ] pure data support
 - [ ] dawproject file export
+- [ ] remove some dependencies
+    - [ ] change serde to nanoserde
