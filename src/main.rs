@@ -661,7 +661,7 @@ fn start_app(working_file: &str) -> Result<()> {
                 ..
             }) => match app.current_mode {
                 Mode::Insert | Mode::Normal | Mode::Visual => {
-                    app.cols.push(vec![vec![Span::from("1"); 7]]);
+                    app.cols.push(vec![vec![Span::from("name")], vec![Span::from("440"), Span::from("1"), Span::from("1")], vec![Span::from("1"); 7]]);
                 }
                 Mode::Command => {
                     app.command_buf.push('=');
@@ -693,8 +693,8 @@ fn start_app(working_file: &str) -> Result<()> {
             }) => match app.current_mode {
                 Mode::Insert | Mode::Normal | Mode::Visual => {
                     app.cols.remove(app.normal_cursor.x as usize);
-                    app.normal_cursor.x = if app.cols.len() < app.normal_cursor.x as usize {
-                        app.cols.len() as u16
+                    app.normal_cursor.x = if app.cols.len() - 1 < app.normal_cursor.x as usize {
+                        app.cols.len() as u16 - 1
                     } else {
                         app.normal_cursor.x
                     };
@@ -720,8 +720,7 @@ fn start_app(working_file: &str) -> Result<()> {
                 ..
             }) => match app.current_mode {
                 Mode::Insert => {
-                    let temp_span = app.cols[app.normal_cursor.x as usize][app.normal_cursor.y as usize]
-                        [app.insert_cursor.x as usize]
+                    let temp_span = app.cols[app.normal_cursor.x as usize][app.normal_cursor.y as usize][app.insert_cursor.x as usize]
                         .clone();
                     let slice_len = if temp_span.content.is_empty() { 0 } else { temp_span.content.len() - 1 };
                     let new_line = &mut temp_span.content.to_string()[..slice_len];
@@ -841,7 +840,7 @@ fn start_app(working_file: &str) -> Result<()> {
                 let (mut ft, mut lt, mut vt) = (440.0, 1.0, 1.0);
                 let mut unique_fn: Vec<String> = Vec::new();
                 for col in &app.cols {
-                    for el in col {
+                    for el in &col[2..] {
                         if !unique_fn.contains(&el[6].to_string()) {
                             unique_fn.push(el[6].to_string().clone());
                         }
@@ -856,34 +855,37 @@ fn start_app(working_file: &str) -> Result<()> {
                     unsafe {
                         let lib = libloading::Library::new(lib_name).unwrap();
                         for el in unique_fn {
-                        let f0 = lib.get::<libloading::Symbol<unsafe extern "C" fn(f32, f32, f32, usize, &[f32]) -> Vec<f32>>>(("f".to_string() + &el).as_bytes());
+                            let f0 = lib.get::<libloading::Symbol<unsafe extern "C" fn(f32, f32, f32, usize, &[f32]) -> Vec<f32>>>(("f".to_string() + &el).as_bytes());
                             fns.insert(el.clone(), f0);
                         }
 
                         for (i, col) in app.cols.iter().enumerate() {
                             let (mut fs, mut ls, mut vs) = (440.0, 1.0, 1.0);
-                            for (i_el, el) in col.iter().enumerate() {
-                                    if i_el == 0 { continue; }
-                                    if i_el == 1 { continue; }
-                                    else {
-                                let elems: Vec<_> = el.iter().take(6).clone().collect();
-                                let mut vec_args = Vec::with_capacity(3);
-                                for indx in 0..3 {
-                                    vec_args.push(
-                                        str::parse::<usize>(&elems[indx * 2].content).unwrap_or(0) as f32
-                                        / str::parse::<usize>(&elems[indx * 2 + 1].content) .unwrap_or(0) as f32,
-                                    );
+                            for (i_el, el) in col[1..].iter().enumerate() {
+                                if i_el == 0 { 
+                                    let elems: Vec<_> = el.iter().take(3).clone().map(|it| str::parse::<f32>(&it.content).unwrap_or(0.0)).collect();
+                                    (fs, ls, vs) = (elems[0], elems[1], elems[2]);
                                 }
-                                let (f, l, v) = (vec_args[0], vec_args[1], vec_args[2]);
-                                (fs, ls, vs) = (fs * f, ls * l, v * vs);
-                                (ft, lt, vt) = (fs * f, ls * l, v * vs); // TODO: REMOVE THIS
-                                let pushed_fn = &fns[&el[6].content.to_string()];
-                                match pushed_fn {
-                                    Ok(val) => {output[i].push(val(fs, ls, vs, 44100, &[]));},
-                                    Err(_) => {output[i].push(f1(fs, ls, vs, 44100, &[]));},
+                                else {
+                                    let elems: Vec<_> = el.iter().take(6).clone().collect();
+                                    let mut vec_args = Vec::with_capacity(3);
+                                    for indx in 0..3 {
+                                        vec_args.push(
+                                            str::parse::<usize>(&elems[indx * 2].content).unwrap_or(0) as f32
+                                            / str::parse::<usize>(&elems[indx * 2 + 1].content) .unwrap_or(0) as f32,
+                                        );
+                                    }
+                                    let (f, l, v) = (vec_args[0], vec_args[1], vec_args[2]);
+                                    (fs, ls, vs) = (fs * f, ls * l, v * vs);
+                                    (ft, lt, vt) = (fs * f, ls * l, v * vs); // TODO: REMOVE THIS
+                                    let pushed_fn = &fns[&el[6].content.to_string()];
+                                    match pushed_fn {
+                                        Ok(val) => {output[i].push(val(fs, ls, vs, 44100, &[]));},
+                                        Err(_) => {output[i].push(f1(fs, ls, vs, 44100, &[]));},
+                                    }
                                 }
                             }
-                                }}
+                        }
                         let max_len = output
                             .iter()
                             .map(|it| it.iter().flatten().count())

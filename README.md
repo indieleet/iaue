@@ -1,9 +1,10 @@
-# IAUE
+# InteractiveAUdioEditor
 
 TODO
 - [x] add support for cli
 - [x] add row highlight
 - [x] add support for themes
+- [x] add init values for every row
 - [ ] render file to wav
 - [ ] put render in different thread
 - [ ] better workflow
@@ -18,7 +19,6 @@ TODO
     - [ ] add init values
     - [ ] add labels
     - [ ] add row numbers
-- [ ] add init values for every row
 - [ ] add constant frequency, lenght, etc mode
 - [ ] add fxes on tracks
 - [ ] more generative features
