@@ -14,7 +14,7 @@ use ratatui::{
     widgets::*,
     Terminal,
 };
-use std::{fs, io::{Read, Write}, process::{Command, Stdio}};
+use std::{fs, io::{Read, Write}, process::{Command, Stdio}, usize};
 use std::
     io::{stdout, Result};
 use std::collections::HashMap;
@@ -46,6 +46,7 @@ pub struct App<'a> {
     x_bound: u16,
     y_bound: u16,
     cols: Vec<Vec<Vec<Span<'a>>>>,
+    yank_buf: Vec<Span<'a>>,
     //constrains: Vec<Constraint>,
     is_help: bool,
     should_leave: bool,
@@ -129,11 +130,11 @@ impl Widget for TableWithCells<'_> {
                         _ => { (Modifier::default(), Modifier::default()) } 
                     };
                     buf.set_span(constr_c[ci].x, constr_c[ci].y, &c.clone().set_style(cell_style), 12);
-                    match ci%2 {
-                        0 if i > 1 => {
+                    match ci {
+                        0 | 2 | 4 if i > 1 => {
                             buf.set_span(constr_c[ci].x + 1, constr_c[ci].y, &Span::from("/").set_style(inside_style), 1);
                         },
-                        1 if i > 1=> {
+                        1 | 3 | 5 if i > 1=> {
                             buf.set_span(constr_c[ci].x + 1, constr_c[ci].y, &Span::from(" ").set_style(inside_style), 1);
                         },
                         _ => (),
@@ -298,6 +299,7 @@ fn start_app(working_file: &str) -> Result<()> {
             vec![vec![Span::from("name").to_owned()], vec![Span::from("440").to_owned(), Span::from("1").to_owned(), Span::from("1").to_owned()], vec![Span::from("1").to_owned(); 7], vec![Span::from("1").to_owned(); 7]],
             vec![vec![Span::from("name").to_owned()], vec![Span::from("440").to_owned(), Span::from("1").to_owned(), Span::from("1").to_owned()], vec![Span::from("1").to_owned(); 7]],
         ],
+        yank_buf: Vec::new(),
         //constrains: vec![Constraint::Max(3); 6],
         is_help: false,
         should_leave: false,
@@ -631,6 +633,29 @@ fn start_app(working_file: &str) -> Result<()> {
                     Mode::Command => {
                         app.command_buf.push('G');
                     }
+                    Mode::Insert => {},
+                }
+                //cursor.x = if new_x > app.x_bound - 1 { app.x_bound - 1 }
+                //    else { new_x };
+            }
+            Event::Key(KeyEvent {
+                //modifiers: KeyModifiers::CONTROL,
+                code: KeyCode::Char('g'),
+                ..
+            }) => {
+                let count: u16 = app.current_times.parse().unwrap_or(0);
+                let _ = &app.current_times.clear();
+                match app.current_mode {
+                    Mode::Normal | Mode::Visual => {
+                        app.normal_cursor.y = if count <= y_bound - 1 {
+                            count
+                        } else {
+                            y_bound - 1
+                        };
+                    }
+                    Mode::Command => {
+                        app.command_buf.push('G');
+                    }
                     Mode::Insert => todo!(),
                 }
                 //cursor.x = if new_x > app.x_bound - 1 { app.x_bound - 1 }
@@ -685,6 +710,17 @@ fn start_app(working_file: &str) -> Result<()> {
                 }
                 Mode::Command => {
                     app.command_buf.push('d');
+                }
+            },
+            Event::Key(KeyEvent {
+                code: KeyCode::Char('y'),
+                ..
+            }) => match app.current_mode {
+                Mode::Insert | Mode::Normal | Mode::Visual => {
+                    app.yank_buf = app.cols[app.normal_cursor.x as usize][app.normal_cursor.y as usize].clone();
+                }, 
+                Mode::Command => {
+                    app.command_buf.push('y');
                 }
             },
             Event::Key(KeyEvent {
