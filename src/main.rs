@@ -461,6 +461,25 @@ fn start_app(working_file: &str) -> Result<()> {
                 }
             },
             Event::Key(KeyEvent {
+                code: KeyCode::Char('.'),
+                ..
+            }) => match app.current_mode {
+                Mode::Normal | Mode::Visual => {
+                }
+                Mode::Insert => {
+                    let temp_span = app.cols[app.normal_cursor.x as usize][app.normal_cursor.y as usize]
+                        [app.insert_cursor.x as usize]
+                        .clone();
+                    app.cols[app.normal_cursor.x as usize][app.normal_cursor.y as usize]
+                        [app.insert_cursor.x as usize]
+                        .content =
+                        (temp_span.content.to_string() + ".").into();
+                }
+                Mode::Command => {
+                    app.command_buf.push('.');
+                }
+            },
+            Event::Key(KeyEvent {
                 code: KeyCode::Esc, ..
             }) => {
                 app.current_mode = Mode::Normal;
@@ -697,10 +716,10 @@ fn start_app(working_file: &str) -> Result<()> {
                 ..
             }) => match app.current_mode {
                 Mode::Insert | Mode::Normal => {
+                    app.cols[app.normal_cursor.x as usize].remove(app.normal_cursor.y as usize);
                     if y_bound - 2 < app.normal_cursor.y {
                         app.normal_cursor.y = app.normal_cursor.y.saturating_sub(1);
                     }
-                    app.cols[app.normal_cursor.x as usize].remove(app.normal_cursor.y as usize);
                 }, 
                 Mode::Visual => { 
                     if y_bound - 2 < app.normal_cursor.y {
@@ -722,6 +741,50 @@ fn start_app(working_file: &str) -> Result<()> {
                 Mode::Command => {
                     app.command_buf.push('y');
                 }
+            },
+            Event::Key(KeyEvent {
+                code: KeyCode::Char('p'),
+                ..
+            }) => {
+                match app.current_mode {
+                    Mode::Insert | Mode::Normal | Mode::Visual => {
+                        if !app.yank_buf.is_empty() {
+                        app.cols[app.normal_cursor.x as usize].insert(app.normal_cursor.y as usize + 1, app.yank_buf.clone()); 
+                        }
+                    }
+                    Mode::Command => {
+                        app.command_buf.push('p');
+                    }
+                }
+                // let len_rows = app.rows[y_bound as usize - 1].len();
+                // if (y_bound as usize) < app.rows.len() {
+                //     app.rows[y_bound as usize].extend(vec![vec![Span::from("1/1");3]; (app.normal_cursor.x as usize + 1).saturating_sub(len_rows - 1)]);
+                // }
+                // else {
+                //     app.rows.push(vec![vec![Span::from("1/1"); 3]; app.normal_cursor.x as usize + 1]);
+                // }
+            },
+            Event::Key(KeyEvent {
+                code: KeyCode::Char('P'),
+                ..
+            }) => {
+                match app.current_mode {
+                    Mode::Insert | Mode::Normal | Mode::Visual => {
+                        if !app.yank_buf.is_empty() {
+                        app.cols[app.normal_cursor.x as usize].insert(app.normal_cursor.y as usize, app.yank_buf.clone()); 
+                        }
+                    }
+                    Mode::Command => {
+                        app.command_buf.push('P');
+                    }
+                }
+                // let len_rows = app.rows[y_bound as usize - 1].len();
+                // if (y_bound as usize) < app.rows.len() {
+                //     app.rows[y_bound as usize].extend(vec![vec![Span::from("1/1");3]; (app.normal_cursor.x as usize + 1).saturating_sub(len_rows - 1)]);
+                // }
+                // else {
+                //     app.rows.push(vec![vec![Span::from("1/1"); 3]; app.normal_cursor.x as usize + 1]);
+                // }
             },
             Event::Key(KeyEvent {
                 code: KeyCode::Char('-'),
@@ -862,7 +925,7 @@ fn start_app(working_file: &str) -> Result<()> {
                 ..
             }) => {
                 let full_path_lib = std::env::current_dir().unwrap().join(app.file_name.clone() + ".rs");
-                let lib_name = "./librust_lib.so";
+                let lib_name = std::path::Path::new(&("lib".to_string().to_owned() + &app.file_name + ".so")).canonicalize().unwrap();
                 let comp_status = std::process::Command::new("rustc")
                     .arg("-C")
                     .arg("target-feature=-crt-static")
@@ -907,8 +970,8 @@ fn start_app(working_file: &str) -> Result<()> {
                                     let mut vec_args = Vec::with_capacity(3);
                                     for indx in 0..3 {
                                         vec_args.push(
-                                            str::parse::<usize>(&elems[indx * 2].content).unwrap_or(0) as f32
-                                            / str::parse::<usize>(&elems[indx * 2 + 1].content) .unwrap_or(0) as f32,
+                                            str::parse::<f32>(&elems[indx * 2].content).unwrap_or(0.0)
+                                            / str::parse::<f32>(&elems[indx * 2 + 1].content).unwrap_or(0.0),
                                         );
                                     }
                                     let (f, l, v) = (vec_args[0], vec_args[1], vec_args[2]);

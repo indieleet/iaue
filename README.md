@@ -8,18 +8,19 @@ TODO
 - [ ] render file to wav
 - [ ] put render in different thread
 - [ ] better workflow
+    - [x] add yanking
+    - [x] add pasting
     - [ ] faster insert mode edit
     - [ ] make d work in visual mode
     - [ ] make + work in visual mode
     - [ ] make - work in visual mode
     - [ ] make = work in visual mode
-    - [ ] add yanking
-    - [ ] add pasting
+    - [ ] paste count of times
     - [ ] add multitabs
     - [ ] add init values
     - [ ] add labels
     - [ ] add row numbers
-- [ ] add constant frequency, lenght, etc mode
+- [ ] add constant frequency, length, etc mode
 - [ ] add fxes on tracks
 - [ ] more generative features
     - [ ] random builtin instruments and fxes

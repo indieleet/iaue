@@ -1,5 +1,4 @@
-pub static TEXT: &str = 
-r#"Normal Mode | Visual Mode
+pub static TEXT: &str = r#"Normal Mode | Visual Mode
 h | <- - left
 j | down arrow - down
 k | up arrow - up
@@ -7,6 +6,8 @@ l | -> left
 + - add row
 d - delete row
 y - yank current cell
+p - paste yanked cell
+P - paste yanked cell before
 = - add column
 - - delete column
 g - go to specific line or to start
