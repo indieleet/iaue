@@ -296,6 +296,7 @@ fn start_app(working_file: &str) -> Result<()> {
         y_bound: 0,
         current_times: String::new(),
         cols: vec![
+            vec![vec![Span::from("1").to_owned()];3],
             vec![vec![Span::from("name").to_owned()], vec![Span::from("440").to_owned(), Span::from("1").to_owned(), Span::from("1").to_owned()], vec![Span::from("1").to_owned(); 7], vec![Span::from("1").to_owned(); 7]],
             vec![vec![Span::from("name").to_owned()], vec![Span::from("440").to_owned(), Span::from("1").to_owned(), Span::from("1").to_owned()], vec![Span::from("1").to_owned(); 7]],
         ],
