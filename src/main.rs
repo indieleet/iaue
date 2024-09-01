@@ -1,27 +1,24 @@
 mod help;
 mod init_config;
 
+use clap::{Parser, Subcommand};
 use crossterm::{
     event::{self, Event, KeyCode, KeyEvent, KeyModifiers},
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
     ExecutableCommand,
 };
 use ratatui::layout::Direction;
-use ratatui::{
-    backend::CrosstermBackend,
-    prelude::*,
-    style::Stylize,
-    widgets::*,
-    Terminal,
-};
-use std::{fs, io::{Read, Write}, process::{Command, Stdio}, usize};
-use std::
-    io::{stdout, Result};
+use ratatui::{backend::CrosstermBackend, prelude::*, style::Stylize, widgets::*, Terminal};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::io::{stdout, Result};
+use std::{
+    fs,
+    io::{Read, Write},
+    process::{Command, Stdio},
+};
 use style::Styled;
 use tinyaudio::prelude::*;
-use clap::{Parser, Subcommand};
-use serde::{Serialize, Deserialize};
 
 #[derive(Serialize, Deserialize)]
 struct JsonColor(String);
@@ -50,6 +47,19 @@ pub struct App<'a> {
     //constrains: Vec<Constraint>,
     is_help: bool,
     should_leave: bool,
+}
+
+impl App<'_> {
+    fn count_lines(&mut self) {
+        let max_y = self.cols[1..].iter().map(|it| it.len()).max().unwrap_or(0);
+        let mut cols = (0..max_y as isize)
+            .map(|it| (it - self.normal_cursor.y as isize).abs())
+            .map(|it| vec![Span::from(it.to_string()).style(self.theme["fg_dark"])])
+            .collect::<Vec<_>>();
+        cols[self.normal_cursor.y as usize][0] =
+            Span::from(self.normal_cursor.y.to_string()).style(self.theme["orange"]);
+        self.cols[0] = cols;
+    }
 }
 
 #[derive(Debug)]
@@ -86,14 +96,28 @@ impl Widget for TableWithCells<'_> {
     where
         Self: Sized,
     {
-        let constr_col = Layout::horizontal(vec![Constraint::Max(1), Constraint::Min(1), Constraint::Max(1)])
-            .split(area);
-        let constr_rows = Layout::vertical(vec![Constraint::Max(1), Constraint::Min(1), Constraint::Max(3)])
-            .split(constr_col[1]);
+        let constr_col = Layout::horizontal(vec![
+            Constraint::Max(1),
+            Constraint::Min(1),
+            Constraint::Max(1),
+        ])
+        .split(area);
+        let constr_rows = Layout::vertical(vec![
+            Constraint::Max(1),
+            Constraint::Min(1),
+            Constraint::Max(3),
+        ])
+        .split(constr_col[1]);
 
         let constr_x = ratatui::layout::Layout::default()
             .direction(Direction::Horizontal)
-            .constraints(vec![Constraint::Max(14); self.app.cols.len()])
+            .constraints(
+                [
+                    vec![Constraint::Max(4)],
+                    vec![Constraint::Max(14); self.app.cols.len() - 1],
+                ]
+                .concat(),
+            )
             .split(constr_rows[1]);
 
         let (max_vx, min_vx) = if self.app.normal_cursor.x >= self.app.visual_cursor.x {
@@ -107,36 +131,82 @@ impl Widget for TableWithCells<'_> {
             (self.app.visual_cursor.y, self.app.normal_cursor.y)
         };
 
-        match self.app.current_mode { 
-            Mode::Normal | Mode::Insert => { buf.set_span(constr_col[1].x, self.app.normal_cursor.y + constr_rows[1].y, &Span::from(" ".repeat(area.width as usize)).bg(self.app.theme["bg_highlight"]), area.width - 2); },
+        match self.app.current_mode {
+            Mode::Normal | Mode::Insert => {
+                buf.set_span(
+                    constr_col[1].x,
+                    self.app.normal_cursor.y + constr_rows[1].y,
+                    &Span::from(" ".repeat(area.width as usize)).bg(self.app.theme["bg_highlight"]),
+                    area.width - 2,
+                );
+            }
             _ => {}
-}
+        }
         for (col_i, col) in self.app.cols.iter().enumerate() {
             let constr_y = ratatui::layout::Layout::default()
                 .direction(Direction::Vertical)
                 .constraints(vec![Constraint::Max(1); col.len()])
                 .split(constr_x[col_i]);
             for (i, el) in col.iter().enumerate() {
-                let constr_c = layout::Layout::default()
-                    .direction(Direction::Horizontal)
-                    .constraints(vec![Constraint::Max(4); el.len()])
-                    .split(constr_y[i]);
+                let constr_c = if col_i != 0 {
+                    layout::Layout::default()
+                        .direction(Direction::Horizontal)
+                        .constraints(vec![Constraint::Max(4); el.len()])
+                        .split(constr_y[i])
+                } else {
+                    layout::Layout::default()
+                        .direction(Direction::Horizontal)
+                        .constraints(vec![Constraint::Max(3)])
+                        .split(constr_y[i])
+                };
 
                 for (ci, c) in el.iter().enumerate() {
                     let (cell_style, inside_style) = match self.app.current_mode {
-                        Mode::Visual if (i >= min_vy as usize && i <= max_vy as usize) && (col_i >= min_vx as usize && col_i <= max_vx as usize) => { (Modifier::REVERSED, Modifier::REVERSED) },
-                        Mode::Normal if (col_i == self.app.normal_cursor.x as usize && i == self.app.normal_cursor.y as usize) => { (Modifier::REVERSED, Modifier::REVERSED) },
-                        Mode::Insert if (col_i == self.app.normal_cursor.x as usize && i == self.app.normal_cursor.y as usize && ci == self.app.insert_cursor.x as usize) => { (Modifier::REVERSED, Modifier::default()) },
-                        _ => { (Modifier::default(), Modifier::default()) } 
+                        Mode::Visual
+                            if (i >= min_vy as usize && i <= max_vy as usize)
+                                && (col_i >= min_vx as usize && col_i <= max_vx as usize) =>
+                        {
+                            (Modifier::REVERSED, Modifier::REVERSED)
+                        }
+                        Mode::Normal
+                            if (col_i == self.app.normal_cursor.x as usize
+                                && i == self.app.normal_cursor.y as usize) =>
+                        {
+                            (Modifier::REVERSED, Modifier::REVERSED)
+                        }
+                        Mode::Insert
+                            if (col_i == self.app.normal_cursor.x as usize
+                                && i == self.app.normal_cursor.y as usize
+                                && ci == self.app.insert_cursor.x as usize) =>
+                        {
+                            (Modifier::REVERSED, Modifier::default())
+                        }
+                        _ => (Modifier::default(), Modifier::default()),
                     };
-                    buf.set_span(constr_c[ci].x, constr_c[ci].y, &c.clone().set_style(cell_style), 12);
+
+                    buf.set_span(
+                        constr_c[ci].x,
+                        constr_c[ci].y,
+                        &c.clone().patch_style(cell_style),
+                        4,
+                    );
                     match ci {
-                        0 | 2 | 4 if i > 1 => {
-                            buf.set_span(constr_c[ci].x + 1, constr_c[ci].y, &Span::from("/").set_style(inside_style), 1);
-                        },
-                        1 | 3 | 5 if i > 1=> {
-                            buf.set_span(constr_c[ci].x + 1, constr_c[ci].y, &Span::from(" ").set_style(inside_style), 1);
-                        },
+                        0 | 2 | 4 if (i > 1) && (col_i > 0) => {
+                            buf.set_span(
+                                constr_c[ci].x + 1,
+                                constr_c[ci].y,
+                                &Span::from("/").style(inside_style),
+                                1,
+                            );
+                        }
+                        1 | 3 | 5 if (i > 1) && (col_i > 0) => {
+                            buf.set_span(
+                                constr_c[ci].x + 1,
+                                constr_c[ci].y,
+                                &Span::from(" ").set_style(inside_style),
+                                1,
+                            );
+                        }
                         _ => (),
                     }
                 }
@@ -156,13 +226,119 @@ struct Cli {
 #[derive(Subcommand)]
 enum Commands {
     ///Render file to wav format
-    Render { 
+    Render {
         file_path: Option<String>,
         output_path: Option<String>,
-    }
+    },
 }
 
+fn render(app: &mut App) -> Vec<f32> {
+    let mut out_vec: Vec<f32> = vec![];
+    let full_path_lib = std::env::current_dir()
+        .unwrap()
+        .join(app.file_name.clone() + ".rs");
+    let lib_name = std::path::Path::new(&("lib".to_string().to_owned() + &app.file_name + ".so"))
+        .canonicalize()
+        .unwrap();
+    let comp_status = std::process::Command::new("rustc")
+        .arg("-C")
+        .arg("target-feature=-crt-static")
+        .arg("--crate-type")
+        .arg("cdylib")
+        .arg(&full_path_lib)
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+    .unwrap();
+    let mut output: Vec<Vec<Vec<f32>>> = vec![Vec::new(); app.cols.len()];
+    let mut unique_fn: Vec<String> = Vec::new();
+    for col in &app.cols[1..] {
+        for el in &col[2..] {
+            if !unique_fn.contains(&el[6].to_string()) {
+                unique_fn.push(el[6].to_string().clone());
+            }
+        }
+    }
+    let mut fns = std::collections::HashMap::new();
+    fn f1(_f: f32, l: f32, _v: f32, t: usize, _p: &[f32]) -> Vec<f32> {
+        vec![0.0; (l * t as f32) as usize]
+    }
+    if comp_status.success() {
+        unsafe {
+            let lib = libloading::Library::new(lib_name).unwrap();
+            for el in unique_fn {
+                let f0 = lib.get::<libloading::Symbol<
+                    unsafe extern "C" fn(f32, f32, f32, usize, &[f32]) -> Vec<f32>,
+                >>(("f".to_string() + &el).as_bytes());
+                fns.insert(el.clone(), f0);
+            }
 
+            for (i, col) in app.cols[1..].iter().enumerate() {
+                let (mut fs, mut ls, mut vs) = (440.0, 1.0, 1.0);
+                for (i_el, el) in col[1..].iter().enumerate() {
+                    if i_el == 0 {
+                        let elems: Vec<_> = el
+                            .iter()
+                            .take(3)
+                            .clone()
+                            .map(|it| str::parse::<f32>(&it.content).unwrap_or(0.0))
+                            .collect();
+                        (fs, ls, vs) = (elems[0], elems[1], elems[2]);
+                    } else {
+                        let elems: Vec<_> = el.iter().take(6).clone().collect();
+                        let mut vec_args = Vec::with_capacity(3);
+                        for indx in 0..3 {
+                            vec_args.push(
+                                str::parse::<f32>(&elems[indx * 2].content).unwrap_or(0.0)
+                                    / str::parse::<f32>(&elems[indx * 2 + 1].content)
+                                        .unwrap_or(0.0),
+                            );
+                        }
+                        let (f, l, v) = (vec_args[0], vec_args[1], vec_args[2]);
+                        (fs, ls, vs) = (fs * f, ls * l, v * vs);
+                        //(ft, lt, vt) = (fs * f, ls * l, v * vs); // TODO: REMOVE THIS
+                        let pushed_fn = &fns[&el[6].content.to_string()];
+                        match pushed_fn {
+                            Ok(val) => {
+                                output[i].push(val(fs, ls, vs, 44100, &[]));
+                            }
+                            Err(_) => {
+                                output[i].push(f1(fs, ls, vs, 44100, &[]));
+                            }
+                        }
+                    }
+                }
+            }
+            let max_len = output
+                .iter()
+                .map(|it| it.iter().flatten().count())
+                .max()
+                .unwrap_or(0);
+            out_vec = vec![0.0; max_len];
+            for column in output {
+                for (i, el) in column.iter().flatten().enumerate() {
+                    out_vec[i] += *el;
+                }
+            }
+            //let mut out_vec_iter = out_vec.into_iter();
+            //fn_status = format!("{}, {}, {}, {}", ft, lt, vt, (max_len / 44100) as f32);
+        }
+    }
+    out_vec
+}
+
+fn render_and_save_file(app: &mut App, file_name: String) {
+    use std::fs::File;
+    use std::path::absolute;
+    use std::path::Path;
+    let out_file = render(app);
+    let new_file_name = if file_name.is_empty() { app.file_name.clone() + ".wav" } else { file_name };
+    let full_path = absolute(Path::new(&new_file_name)).unwrap().to_path_buf();
+    let mut file = File::create(full_path).unwrap();
+    let header = wav_io::new_mono_header();
+    let _ = wav_io::write_to_file(&mut file, &header, &out_file);
+    app.command_buf = format!("Saved to {}", new_file_name); //TODO:
+}
 fn open_file(app: &mut App, file_name: String) {
     use std::fs::File;
     use std::io::Read;
@@ -170,21 +346,39 @@ fn open_file(app: &mut App, file_name: String) {
     use std::path::Path;
     let new_file = match Path::new(&file_name).canonicalize() {
         Ok(value) => value,
-        Err(_) => { app.command_buf = format!("Can't find file {}.", file_name); return; }
-
+        Err(_) => {
+            app.command_buf = format!("Can't find file {}.", file_name);
+            return;
+        }
     };
     let full_path = match new_file.is_file() {
-        true => { new_file },
-        false => { new_file.join(&app.file_name) }
+        true => new_file,
+        false => new_file.join(&app.file_name),
     };
     let _ = std::env::set_current_dir(full_path.parent().unwrap());
-    app.file_name = full_path.file_name().unwrap().to_str().unwrap().split(".").next().unwrap().to_string();
+    app.file_name = full_path
+        .file_name()
+        .unwrap()
+        .to_str()
+        .unwrap()
+        .split(".")
+        .next()
+        .unwrap()
+        .to_string();
     let mut file = File::open(full_path);
     match file {
         Ok(ref mut val) => {
             let mut data = String::new();
             val.read_to_string(&mut data).unwrap();
-            app.cols = serde_json::from_str::<Vec<Vec<Vec<String>>>>(&data).unwrap().into_iter().map(|col| col.into_iter().map(|el| el.into_iter().map(Span::from).collect::<Vec<_>>()).collect::<Vec<_>>()).collect::<Vec<_>>();
+            app.cols = serde_json::from_str::<Vec<Vec<Vec<String>>>>(&data)
+                .unwrap()
+                .into_iter()
+                .map(|col| {
+                    col.into_iter()
+                        .map(|el| el.into_iter().map(Span::from).collect::<Vec<_>>())
+                        .collect::<Vec<_>>()
+                })
+                .collect::<Vec<_>>();
             app.normal_cursor.x = 0;
             app.normal_cursor.y = 0;
             app.visual_cursor.x = 0;
@@ -192,75 +386,113 @@ fn open_file(app: &mut App, file_name: String) {
             app.insert_cursor.x = 0;
             app.command_buf.clear();
         }
-        Err(_) => { app.command_buf = format!("Can't find file {}.", file_name); }
+        Err(_) => {
+            app.command_buf = format!("Can't find file {}.", file_name);
+        }
     }
 }
 
 fn save_file(app: &mut App, file_name: String) {
     use std::fs::File;
     use std::io::{BufWriter, Write};
-    use std::path::Path;
     use std::path::absolute;
+    use std::path::Path;
     let new_file = absolute(Path::new(&file_name)).unwrap().to_path_buf();
     let full_path = match new_file.is_file() {
-        true => { new_file.to_path_buf() },
-        false => { new_file.join(&app.file_name) }
+        true => new_file.to_path_buf(),
+        false => new_file.join(&app.file_name),
     };
     let _ = std::env::set_current_dir(full_path.parent().unwrap());
-    app.file_name = full_path.file_name().unwrap().to_str().unwrap().split(".").next().unwrap().to_string();
-    let full_path = std::path::Path::new(&std::env::current_dir().unwrap().to_str().unwrap_or("/")).join(&file_name);
-    let file_cloned = &app.cols.clone().into_iter().map(|col| col.into_iter().map(|el| el.into_iter().map(|c| c.content).collect::<Vec<_>>()).collect::<Vec<_>>()).collect::<Vec<_>>();
+    app.file_name = full_path
+        .file_name()
+        .unwrap()
+        .to_str()
+        .unwrap()
+        .split(".")
+        .next()
+        .unwrap()
+        .to_string();
+    let full_path = std::path::Path::new(&std::env::current_dir().unwrap().to_str().unwrap_or("/"))
+        .join(&file_name);
+    let file_cloned = &app
+        .cols
+        .clone()
+        .into_iter()
+        .map(|col| {
+            col.into_iter()
+                .map(|el| el.into_iter().map(|c| c.content).collect::<Vec<_>>())
+                .collect::<Vec<_>>()
+        })
+        .collect::<Vec<_>>();
     let file = File::create(full_path).unwrap();
     let mut writer = BufWriter::new(file);
     serde_json::to_writer(&mut writer, &file_cloned).unwrap();
     writer.flush().unwrap();
 }
 
-fn exec_command(app: &mut App) { 
-    let splitted_commands = app.command_buf[1..].split_whitespace().collect::<Vec<&str>>();
-    match *splitted_commands.first().unwrap() { 
-        "q" => { 
+fn exec_command(app: &mut App) {
+    let splitted_commands = app.command_buf[1..]
+        .split_whitespace()
+        .collect::<Vec<&str>>();
+    match *splitted_commands.first().unwrap() {
+        "q" => {
             app.should_leave = true;
             app.command_buf.clear();
-        },
-        "wq" => { 
+        }
+        "wq" => {
             app.command_buf = "Not yet implemented.".to_string(); //TODO:
-         },
-        "cd" => { 
+        }
+        "cd" => {
             if std::env::set_current_dir(splitted_commands[1..].join(" ")).is_err() {
-                app.command_buf = format!("Can't find dir {}.", splitted_commands[1..].join(" ")); 
+                app.command_buf = format!("Can't find dir {}.", splitted_commands[1..].join(" "));
             }
             //TODO: only possible if dir exist
-        },
-        "pwd" => { 
-            app.command_buf = std::env::current_dir().unwrap().to_str().unwrap_or("/").to_string();
-        },
-        "cf" => { 
-            app.file_name = splitted_commands[1..].join(" ").split('.').next().unwrap().to_string();
-        },
-        "o" | "open" => { 
+        }
+        "pwd" => {
+            app.command_buf = std::env::current_dir()
+                .unwrap()
+                .to_str()
+                .unwrap_or("/")
+                .to_string();
+        }
+        "cf" => {
+            app.file_name = splitted_commands[1..]
+                .join(" ")
+                .split('.')
+                .next()
+                .unwrap()
+                .to_string();
+        }
+        "o" | "open" => {
             open_file(app, splitted_commands[1..].join(" "));
-        },
-        "s" | "save" => { 
+        }
+        "render" => {
+            render_and_save_file(app, splitted_commands[1..].join(" "));
+        }
+        "s" | "save" => {
             save_file(app, splitted_commands[1..].join(" "));
             app.command_buf.clear();
-        },
-        "e" | "edit" => { app.command_buf = "Not yet implemented.".to_string(); }, //TODO:
-        command => { app.command_buf = format!("Command '{}' not found.", command) }
+        }
+        "e" | "edit" => {
+            app.command_buf = "Not yet implemented.".to_string();
+        } //TODO:
+        command => app.command_buf = format!("Command '{}' not found.", command),
     }
     app.current_mode = Mode::Normal;
 }
 
 fn start_app(working_file: &str) -> Result<()> {
     let mut config_raw_text = String::new();
-    let config_path = home::home_dir().unwrap().join(".config").join("iaue").join("theme.json");
+    let config_path = home::home_dir()
+        .unwrap()
+        .join(".config")
+        .join("iaue")
+        .join("theme.json");
     if !home::home_dir().unwrap().exists() {
         let _ = fs::create_dir(home::home_dir().unwrap());
     };
-    if !config_path.parent().unwrap()
-        .parent().unwrap().exists() {
-        let _ = fs::create_dir(config_path.parent().unwrap()
-        .parent().unwrap());
+    if !config_path.parent().unwrap().parent().unwrap().exists() {
+        let _ = fs::create_dir(config_path.parent().unwrap().parent().unwrap());
     };
     if !config_path.parent().unwrap().exists() {
         let _ = fs::create_dir(config_path.parent().unwrap());
@@ -271,9 +503,12 @@ fn start_app(working_file: &str) -> Result<()> {
     };
     let mut config_file = std::fs::File::open(config_path).unwrap();
     let _ = config_file.read_to_string(&mut config_raw_text);
-    let config_file: HashMap<String, style::Color>= serde_json::from_str::<HashMap<String, JsonColor>>(&config_raw_text).unwrap()
-        .into_iter()
-        .map(|(key,val)| (key, val.into())).collect();
+    let config_file: HashMap<String, style::Color> =
+        serde_json::from_str::<HashMap<String, JsonColor>>(&config_raw_text)
+            .unwrap()
+            .into_iter()
+            .map(|(key, val)| (key, val.into()))
+            .collect();
     stdout().execute(EnterAlternateScreen)?;
     enable_raw_mode()?;
     let mut terminal = Terminal::new(CrosstermBackend::new(stdout()))?;
@@ -296,9 +531,26 @@ fn start_app(working_file: &str) -> Result<()> {
         y_bound: 0,
         current_times: String::new(),
         cols: vec![
-            vec![vec![Span::from("1").to_owned()];3],
-            vec![vec![Span::from("name").to_owned()], vec![Span::from("440").to_owned(), Span::from("1").to_owned(), Span::from("1").to_owned()], vec![Span::from("1").to_owned(); 7], vec![Span::from("1").to_owned(); 7]],
-            vec![vec![Span::from("name").to_owned()], vec![Span::from("440").to_owned(), Span::from("1").to_owned(), Span::from("1").to_owned()], vec![Span::from("1").to_owned(); 7]],
+            vec![vec![Span::from("1").to_owned()]; 3],
+            vec![
+                vec![Span::from("name").to_owned()],
+                vec![
+                    Span::from("440").to_owned(),
+                    Span::from("1").to_owned(),
+                    Span::from("1").to_owned(),
+                ],
+                vec![Span::from("1").to_owned(); 7],
+                vec![Span::from("1").to_owned(); 7],
+            ],
+            vec![
+                vec![Span::from("name").to_owned()],
+                vec![
+                    Span::from("440").to_owned(),
+                    Span::from("1").to_owned(),
+                    Span::from("1").to_owned(),
+                ],
+                vec![Span::from("1").to_owned(); 7],
+            ],
         ],
         yank_buf: Vec::new(),
         //constrains: vec![Constraint::Max(3); 6],
@@ -308,8 +560,14 @@ fn start_app(working_file: &str) -> Result<()> {
     let editor = std::env::var("EDITOR").unwrap_or("nvim".to_string());
     let mut rand_iter = core::iter::repeat_with(|| fastrand::u8(0..9));
     let mut fn_status = String::new();
-    let full_path_lib = std::path::Path::new(&std::env::current_dir().unwrap().to_str().unwrap_or("/")).join(app.file_name.clone() + ".rs");
-    let full_path_file = std::path::Path::new(&std::env::current_dir().unwrap().to_str().unwrap_or("/")).join(app.file_name.clone() + ".tr");
+    let full_path_lib =
+        std::path::Path::new(&std::env::current_dir().unwrap().to_str().unwrap_or("/"))
+            .join(app.file_name.clone() + ".rs");
+    let full_path_file =
+        std::path::Path::new(&std::env::current_dir().unwrap().to_str().unwrap_or("/"))
+            .join(app.file_name.clone() + ".tr");
+    app.y_bound = app.cols[app.normal_cursor.x as usize].len() as u16;
+    app.count_lines();
     loop {
         //let table_cols = app.cols.to_owned();
         //table_rows[app.normal_cursor.y as usize][app.normal_cursor.x as usize] = cur_cell_text;
@@ -334,38 +592,36 @@ fn start_app(working_file: &str) -> Result<()> {
         terminal.draw(|f| {
             app.x_bound = f.area().width;
             app.y_bound = f.area().height;
-           // let size_x = ratatui::layout::Layout::default()
-           //     .direction(Direction::Vertical)
-           //     .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
-           //     .split(f.area());
+            // let size_x = ratatui::layout::Layout::default()
+            //     .direction(Direction::Vertical)
+            //     .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+            //     .split(f.area());
             f.render_widget(Block::new().bg(app.theme["bg"]), f.area());
-           // f.render_widget(
-           //     Table::new(
-           //         table_cols.clone().into_iter().enumerate().map(|(i, row)| {
-           //             if i == app.normal_cursor.y as usize {
-           //                 Row::new(row.into_iter().flatten().collect::<Vec<Span>>())
-           //                     .bg(Color::Rgb(0x2f, 0x33, 0x4d))
-           //             } else {
-           //                 Row::new(row.into_iter().flatten().collect::<Vec<Span>>())
-           //             }
-           //         }),
-           //         app.constrains.to_owned(),
-           //     )
-           //     .block(Block::bordered()),
-           //     size_x[0],
-           // );
-            f.render_widget(Block::bordered(), layout::Rect {
-                x: f.area().x,
-                y: f.area().y,
-                width: f.area().width,
-                height: f.area().height - 2
-            });
+            // f.render_widget(
+            //     Table::new(
+            //         table_cols.clone().into_iter().enumerate().map(|(i, row)| {
+            //             if i == app.normal_cursor.y as usize {
+            //                 Row::new(row.into_iter().flatten().collect::<Vec<Span>>())
+            //                     .bg(Color::Rgb(0x2f, 0x33, 0x4d))
+            //             } else {
+            //                 Row::new(row.into_iter().flatten().collect::<Vec<Span>>())
+            //             }
+            //         }),
+            //         app.constrains.to_owned(),
+            //     )
+            //     .block(Block::bordered()),
+            //     size_x[0],
+            // );
             f.render_widget(
-                TableWithCells {
-                    app: &app
+                Block::bordered(),
+                layout::Rect {
+                    x: f.area().x,
+                    y: f.area().y,
+                    width: f.area().width,
+                    height: f.area().height - 2,
                 },
-                f.area(),
             );
+            f.render_widget(TableWithCells { app: &app }, f.area());
             f.render_widget(
                 format!(
                     "{}:{}:{}",
@@ -418,13 +674,17 @@ fn start_app(working_file: &str) -> Result<()> {
             let lines_count = help::TEXT.lines().count() as u16 + 2;
             if app.is_help {
                 f.render_widget(
-                    Paragraph::new(help::TEXT).block(Block::bordered().title_alignment(Alignment::Center).title("Help")), 
+                    Paragraph::new(help::TEXT).block(
+                        Block::bordered()
+                            .title_alignment(Alignment::Center)
+                            .title("Help"),
+                    ),
                     layout::Rect {
                         x: f.area().width / 2 - 20,
                         y: f.area().height / 2 - lines_count / 2,
                         width: 40,
-                        height: lines_count
-                    }
+                        height: lines_count,
+                    },
                 );
             }
         })?;
@@ -449,8 +709,8 @@ fn start_app(working_file: &str) -> Result<()> {
                     app.current_times.push(matched_code);
                 }
                 Mode::Insert => {
-                    let temp_span = app.cols[app.normal_cursor.x as usize][app.normal_cursor.y as usize]
-                        [app.insert_cursor.x as usize]
+                    let temp_span = app.cols[app.normal_cursor.x as usize]
+                        [app.normal_cursor.y as usize][app.insert_cursor.x as usize]
                         .clone();
                     app.cols[app.normal_cursor.x as usize][app.normal_cursor.y as usize]
                         [app.insert_cursor.x as usize]
@@ -465,16 +725,14 @@ fn start_app(working_file: &str) -> Result<()> {
                 code: KeyCode::Char('.'),
                 ..
             }) => match app.current_mode {
-                Mode::Normal | Mode::Visual => {
-                }
+                Mode::Normal | Mode::Visual => {}
                 Mode::Insert => {
-                    let temp_span = app.cols[app.normal_cursor.x as usize][app.normal_cursor.y as usize]
-                        [app.insert_cursor.x as usize]
+                    let temp_span = app.cols[app.normal_cursor.x as usize]
+                        [app.normal_cursor.y as usize][app.insert_cursor.x as usize]
                         .clone();
                     app.cols[app.normal_cursor.x as usize][app.normal_cursor.y as usize]
                         [app.insert_cursor.x as usize]
-                        .content =
-                        (temp_span.content.to_string() + ".").into();
+                        .content = (temp_span.content.to_string() + ".").into();
                 }
                 Mode::Command => {
                     app.command_buf.push('.');
@@ -507,8 +765,8 @@ fn start_app(working_file: &str) -> Result<()> {
                 ..
             }) => match app.current_mode {
                 Mode::Insert => {
-                    let temp_cell = app.cols[app.normal_cursor.x as usize][app.normal_cursor.y as usize]
-                        [app.insert_cursor.x as usize]
+                    let temp_cell = app.cols[app.normal_cursor.x as usize]
+                        [app.normal_cursor.y as usize][app.insert_cursor.x as usize]
                         .clone();
                     app.cols[app.normal_cursor.x as usize][app.normal_cursor.y as usize]
                         [app.insert_cursor.x as usize] =
@@ -533,17 +791,23 @@ fn start_app(working_file: &str) -> Result<()> {
                     }
                     Mode::Insert => {
                         let new_cursor_insert = app.insert_cursor.x as isize - count as isize;
-                        let insert_bound = if app.normal_cursor.y == 0 { 1 } else if app.normal_cursor.y == 1 { 3 } else { 7 };
-                        let new_cursor_normal = app.normal_cursor.x as isize - (((new_cursor_insert - insert_bound + 1) / insert_bound).abs());
+                        let insert_bound = if app.normal_cursor.y == 0 {
+                            1
+                        } else if app.normal_cursor.y == 1 {
+                            3
+                        } else {
+                            7
+                        };
+                        let new_cursor_normal = app.normal_cursor.x as isize
+                            - (((new_cursor_insert - insert_bound + 1) / insert_bound).abs());
                         if new_cursor_normal >= 0 {
                             app.insert_cursor.x = if new_cursor_insert >= 0 {
                                 new_cursor_insert as u16
                             } else {
-                                    (insert_bound + new_cursor_insert % insert_bound) as u16
-                                };
+                                (insert_bound + new_cursor_insert % insert_bound) as u16
+                            };
                             app.normal_cursor.x = new_cursor_normal as u16;
-                        }
-                        else { 
+                        } else {
                             app.normal_cursor.x = 0;
                             app.insert_cursor.x = 0;
                         }
@@ -572,6 +836,7 @@ fn start_app(working_file: &str) -> Result<()> {
                         } else {
                             new_y
                         };
+                        app.count_lines();
                     }
                     Mode::Command => {
                         app.command_buf.push('j');
@@ -590,6 +855,7 @@ fn start_app(working_file: &str) -> Result<()> {
                 match app.current_mode {
                     Mode::Normal | Mode::Visual | Mode::Insert => {
                         app.normal_cursor.y = app.normal_cursor.y.saturating_sub(count);
+                        app.count_lines();
                     }
                     Mode::Command => {
                         app.command_buf.push('k');
@@ -615,14 +881,22 @@ fn start_app(working_file: &str) -> Result<()> {
                         };
                     }
                     Mode::Insert => {
-                        let insert_bound = if app.normal_cursor.y == 0 { 1 } else if app.normal_cursor.y == 1 { 3 } else { 7 };
+                        let insert_bound = if app.normal_cursor.y == 0 {
+                            1
+                        } else if app.normal_cursor.y == 1 {
+                            3
+                        } else {
+                            7
+                        };
                         let new_cursor_insert = app.insert_cursor.x + count as u16;
-                        let new_cursor_normal = app.normal_cursor.x.saturating_add(new_cursor_insert / insert_bound);
+                        let new_cursor_normal = app
+                            .normal_cursor
+                            .x
+                            .saturating_add(new_cursor_insert / insert_bound);
                         if new_cursor_normal < app.cols.len() as u16 {
                             app.insert_cursor.x = (new_cursor_insert) % insert_bound;
                             app.normal_cursor.x = new_cursor_normal;
-                        }
-                        else {
+                        } else {
                             app.insert_cursor.x = insert_bound - 1;
                             app.normal_cursor.x = app.cols.len() as u16 - 1;
                         }
@@ -649,11 +923,12 @@ fn start_app(working_file: &str) -> Result<()> {
                         } else {
                             y_bound - 1
                         };
+                        app.count_lines();
                     }
                     Mode::Command => {
                         app.command_buf.push('G');
                     }
-                    Mode::Insert => {},
+                    Mode::Insert => {}
                 }
                 //cursor.x = if new_x > app.x_bound - 1 { app.x_bound - 1 }
                 //    else { new_x };
@@ -672,11 +947,12 @@ fn start_app(working_file: &str) -> Result<()> {
                         } else {
                             y_bound - 1
                         };
+                        app.count_lines();
                     }
                     Mode::Command => {
                         app.command_buf.push('G');
                     }
-                    Mode::Insert => todo!(),
+                    Mode::Insert => {}
                 }
                 //cursor.x = if new_x > app.x_bound - 1 { app.x_bound - 1 }
                 //    else { new_x };
@@ -688,6 +964,7 @@ fn start_app(working_file: &str) -> Result<()> {
                 match app.current_mode {
                     Mode::Insert | Mode::Normal | Mode::Visual => {
                         app.cols[app.normal_cursor.x as usize].push(vec![Span::from("1"); 7]);
+                        app.count_lines();
                     }
                     Mode::Command => {
                         app.command_buf.push('+');
@@ -706,7 +983,11 @@ fn start_app(working_file: &str) -> Result<()> {
                 ..
             }) => match app.current_mode {
                 Mode::Insert | Mode::Normal | Mode::Visual => {
-                    app.cols.push(vec![vec![Span::from("name")], vec![Span::from("440"), Span::from("1"), Span::from("1")], vec![Span::from("1"); 7]]);
+                    app.cols.push(vec![
+                        vec![Span::from("name")],
+                        vec![Span::from("440"), Span::from("1"), Span::from("1")],
+                        vec![Span::from("1"); 7],
+                    ]);
                 }
                 Mode::Command => {
                     app.command_buf.push('=');
@@ -721,12 +1002,14 @@ fn start_app(working_file: &str) -> Result<()> {
                     if y_bound - 2 < app.normal_cursor.y {
                         app.normal_cursor.y = app.normal_cursor.y.saturating_sub(1);
                     }
-                }, 
-                Mode::Visual => { 
+                    app.count_lines();
+                }
+                Mode::Visual => {
                     if y_bound - 2 < app.normal_cursor.y {
                         app.normal_cursor.y = app.normal_cursor.y.saturating_sub(1);
                     }
                     app.cols[app.normal_cursor.x as usize].remove(app.normal_cursor.y as usize);
+                    app.count_lines();
                 }
                 Mode::Command => {
                     app.command_buf.push('d');
@@ -737,8 +1020,10 @@ fn start_app(working_file: &str) -> Result<()> {
                 ..
             }) => match app.current_mode {
                 Mode::Insert | Mode::Normal | Mode::Visual => {
-                    app.yank_buf = app.cols[app.normal_cursor.x as usize][app.normal_cursor.y as usize].clone();
-                }, 
+                    app.yank_buf = app.cols[app.normal_cursor.x as usize]
+                        [app.normal_cursor.y as usize]
+                        .clone();
+                }
                 Mode::Command => {
                     app.command_buf.push('y');
                 }
@@ -750,7 +1035,9 @@ fn start_app(working_file: &str) -> Result<()> {
                 match app.current_mode {
                     Mode::Insert | Mode::Normal | Mode::Visual => {
                         if !app.yank_buf.is_empty() {
-                        app.cols[app.normal_cursor.x as usize].insert(app.normal_cursor.y as usize + 1, app.yank_buf.clone()); 
+                            app.cols[app.normal_cursor.x as usize]
+                                .insert(app.normal_cursor.y as usize + 1, app.yank_buf.clone());
+                            app.count_lines();
                         }
                     }
                     Mode::Command => {
@@ -764,7 +1051,7 @@ fn start_app(working_file: &str) -> Result<()> {
                 // else {
                 //     app.rows.push(vec![vec![Span::from("1/1"); 3]; app.normal_cursor.x as usize + 1]);
                 // }
-            },
+            }
             Event::Key(KeyEvent {
                 code: KeyCode::Char('P'),
                 ..
@@ -772,7 +1059,9 @@ fn start_app(working_file: &str) -> Result<()> {
                 match app.current_mode {
                     Mode::Insert | Mode::Normal | Mode::Visual => {
                         if !app.yank_buf.is_empty() {
-                        app.cols[app.normal_cursor.x as usize].insert(app.normal_cursor.y as usize, app.yank_buf.clone()); 
+                            app.cols[app.normal_cursor.x as usize]
+                                .insert(app.normal_cursor.y as usize, app.yank_buf.clone());
+                            app.count_lines();
                         }
                     }
                     Mode::Command => {
@@ -786,7 +1075,7 @@ fn start_app(working_file: &str) -> Result<()> {
                 // else {
                 //     app.rows.push(vec![vec![Span::from("1/1"); 3]; app.normal_cursor.x as usize + 1]);
                 // }
-            },
+            }
             Event::Key(KeyEvent {
                 code: KeyCode::Char('-'),
                 ..
@@ -809,7 +1098,8 @@ fn start_app(working_file: &str) -> Result<()> {
             }) => match app.current_mode {
                 Mode::Insert | Mode::Normal | Mode::Visual => {
                     app.current_mode = Mode::Visual;
-                    (app.visual_cursor.x, app.visual_cursor.y) = (app.normal_cursor.x, app.normal_cursor.y);
+                    (app.visual_cursor.x, app.visual_cursor.y) =
+                        (app.normal_cursor.x, app.normal_cursor.y);
                 }
                 Mode::Command => {
                     app.command_buf.push('v');
@@ -820,19 +1110,25 @@ fn start_app(working_file: &str) -> Result<()> {
                 ..
             }) => match app.current_mode {
                 Mode::Insert => {
-                    let temp_span = app.cols[app.normal_cursor.x as usize][app.normal_cursor.y as usize][app.insert_cursor.x as usize]
+                    let temp_span = app.cols[app.normal_cursor.x as usize]
+                        [app.normal_cursor.y as usize][app.insert_cursor.x as usize]
                         .clone();
-                    let slice_len = if temp_span.content.is_empty() { 0 } else { temp_span.content.len() - 1 };
+                    let slice_len = if temp_span.content.is_empty() {
+                        0
+                    } else {
+                        temp_span.content.len() - 1
+                    };
                     let new_line = &mut temp_span.content.to_string()[..slice_len];
                     app.cols[app.normal_cursor.x as usize][app.normal_cursor.y as usize]
                         [app.insert_cursor.x as usize]
                         .content = (String::from(new_line)).into();
                 }
-                 Mode::Normal | Mode::Visual => {
-                }
+                Mode::Normal | Mode::Visual => {}
                 Mode::Command => {
                     app.command_buf.pop();
-                    if app.command_buf.is_empty() { app.current_mode = Mode::Normal; }
+                    if app.command_buf.is_empty() {
+                        app.current_mode = Mode::Normal;
+                    }
                 }
             },
             Event::Key(KeyEvent {
@@ -855,8 +1151,7 @@ fn start_app(working_file: &str) -> Result<()> {
                 Mode::Insert | Mode::Normal | Mode::Visual => {
                     app.is_help = !app.is_help;
                 }
-                Mode::Command => {
-                }
+                Mode::Command => {}
             },
             Event::Key(KeyEvent {
                 modifiers: KeyModifiers::CONTROL,
@@ -877,7 +1172,16 @@ fn start_app(working_file: &str) -> Result<()> {
             }) => {
                 use std::fs::File;
                 use std::io::{BufWriter, Write};
-                let file_cloned = &app.cols.clone().into_iter().map(|col| col.into_iter().map(|el| el.into_iter().map(|c| c.content).collect::<Vec<_>>()).collect::<Vec<_>>()).collect::<Vec<_>>();
+                let file_cloned = &app
+                    .cols
+                    .clone()
+                    .into_iter()
+                    .map(|col| {
+                        col.into_iter()
+                            .map(|el| el.into_iter().map(|c| c.content).collect::<Vec<_>>())
+                            .collect::<Vec<_>>()
+                    })
+                    .collect::<Vec<_>>();
                 let file = File::create(&full_path_file).unwrap();
                 let mut writer = BufWriter::new(file);
                 serde_json::to_writer(&mut writer, &file_cloned).unwrap();
@@ -893,40 +1197,50 @@ fn start_app(working_file: &str) -> Result<()> {
                 let mut file = File::open(&full_path_file).unwrap();
                 let mut data = String::new();
                 file.read_to_string(&mut data).unwrap();
-                app.cols = serde_json::from_str::<Vec<Vec<Vec<String>>>>(&data).unwrap().into_iter().map(|col| col.into_iter().map(|el| el.into_iter().map(Span::from).collect::<Vec<_>>()).collect::<Vec<_>>()).collect::<Vec<_>>();
+                app.cols = serde_json::from_str::<Vec<Vec<Vec<String>>>>(&data)
+                    .unwrap()
+                    .into_iter()
+                    .map(|col| {
+                        col.into_iter()
+                            .map(|el| el.into_iter().map(Span::from).collect::<Vec<_>>())
+                            .collect::<Vec<_>>()
+                    })
+                    .collect::<Vec<_>>();
                 app.normal_cursor.x = 0;
                 app.normal_cursor.y = 0;
                 app.visual_cursor.x = 0;
                 app.visual_cursor.y = 0;
                 app.insert_cursor.x = 0;
-
             }
             Event::Key(KeyEvent {
                 code: KeyCode::Enter,
                 ..
-            }) => {
-                match app.current_mode {
-                    Mode::Command => {exec_command(&mut app)},
-                    Mode::Normal | Mode::Insert | Mode::Visual => {}
-                }
-            }
+            }) => match app.current_mode {
+                Mode::Command => exec_command(&mut app),
+                Mode::Normal | Mode::Insert | Mode::Visual => {}
+            },
             Event::Key(KeyEvent {
                 modifiers: KeyModifiers::NONE | KeyModifiers::SHIFT,
                 code: KeyCode::Char(matched_code @ ' '..='~'),
                 ..
-            }) => {
-                match app.current_mode { 
-                    Mode::Command => {app.command_buf.push(matched_code);},
-                    Mode::Normal | Mode::Visual | Mode::Insert => ()
-            }
-            }
+            }) => match app.current_mode {
+                Mode::Command => {
+                    app.command_buf.push(matched_code);
+                }
+                Mode::Normal | Mode::Visual | Mode::Insert => (),
+            },
             Event::Key(KeyEvent {
                 modifiers: KeyModifiers::CONTROL,
                 code: KeyCode::Char('r'),
                 ..
             }) => {
-                let full_path_lib = std::env::current_dir().unwrap().join(app.file_name.clone() + ".rs");
-                let lib_name = std::path::Path::new(&("lib".to_string().to_owned() + &app.file_name + ".so")).canonicalize().unwrap();
+                let full_path_lib = std::env::current_dir()
+                    .unwrap()
+                    .join(app.file_name.clone() + ".rs");
+                let lib_name =
+                    std::path::Path::new(&("lib".to_string().to_owned() + &app.file_name + ".so"))
+                        .canonicalize()
+                        .unwrap();
                 let comp_status = std::process::Command::new("rustc")
                     .arg("-C")
                     .arg("target-feature=-crt-static")
@@ -939,7 +1253,7 @@ fn start_app(working_file: &str) -> Result<()> {
                 let mut output: Vec<Vec<Vec<f32>>> = vec![Vec::new(); app.cols.len()];
                 let (mut ft, mut lt, mut vt) = (440.0, 1.0, 1.0);
                 let mut unique_fn: Vec<String> = Vec::new();
-                for col in &app.cols {
+                for col in &app.cols[1..] {
                     for el in &col[2..] {
                         if !unique_fn.contains(&el[6].to_string()) {
                             unique_fn.push(el[6].to_string().clone());
@@ -947,32 +1261,41 @@ fn start_app(working_file: &str) -> Result<()> {
                     }
                 }
                 let mut fns = std::collections::HashMap::new();
-                fn f1(_f: f32, l: f32, _v: f32, t: usize, _p: &[f32]) -> Vec<f32>
-                {
+                fn f1(_f: f32, l: f32, _v: f32, t: usize, _p: &[f32]) -> Vec<f32> {
                     vec![0.0; (l * t as f32) as usize]
                 }
                 if comp_status.success() {
                     unsafe {
                         let lib = libloading::Library::new(lib_name).unwrap();
                         for el in unique_fn {
-                            let f0 = lib.get::<libloading::Symbol<unsafe extern "C" fn(f32, f32, f32, usize, &[f32]) -> Vec<f32>>>(("f".to_string() + &el).as_bytes());
+                            let f0 = lib.get::<libloading::Symbol<
+                                unsafe extern "C" fn(f32, f32, f32, usize, &[f32]) -> Vec<f32>,
+                            >>(
+                                ("f".to_string() + &el).as_bytes()
+                            );
                             fns.insert(el.clone(), f0);
                         }
 
-                        for (i, col) in app.cols.iter().enumerate() {
+                        for (i, col) in app.cols[1..].iter().enumerate() {
                             let (mut fs, mut ls, mut vs) = (440.0, 1.0, 1.0);
                             for (i_el, el) in col[1..].iter().enumerate() {
-                                if i_el == 0 { 
-                                    let elems: Vec<_> = el.iter().take(3).clone().map(|it| str::parse::<f32>(&it.content).unwrap_or(0.0)).collect();
+                                if i_el == 0 {
+                                    let elems: Vec<_> = el
+                                        .iter()
+                                        .take(3)
+                                        .clone()
+                                        .map(|it| str::parse::<f32>(&it.content).unwrap_or(0.0))
+                                        .collect();
                                     (fs, ls, vs) = (elems[0], elems[1], elems[2]);
-                                }
-                                else {
+                                } else {
                                     let elems: Vec<_> = el.iter().take(6).clone().collect();
                                     let mut vec_args = Vec::with_capacity(3);
                                     for indx in 0..3 {
                                         vec_args.push(
-                                            str::parse::<f32>(&elems[indx * 2].content).unwrap_or(0.0)
-                                            / str::parse::<f32>(&elems[indx * 2 + 1].content).unwrap_or(0.0),
+                                            str::parse::<f32>(&elems[indx * 2].content)
+                                                .unwrap_or(0.0)
+                                                / str::parse::<f32>(&elems[indx * 2 + 1].content)
+                                                    .unwrap_or(0.0),
                                         );
                                     }
                                     let (f, l, v) = (vec_args[0], vec_args[1], vec_args[2]);
@@ -980,8 +1303,12 @@ fn start_app(working_file: &str) -> Result<()> {
                                     (ft, lt, vt) = (fs * f, ls * l, v * vs); // TODO: REMOVE THIS
                                     let pushed_fn = &fns[&el[6].content.to_string()];
                                     match pushed_fn {
-                                        Ok(val) => {output[i].push(val(fs, ls, vs, 44100, &[]));},
-                                        Err(_) => {output[i].push(f1(fs, ls, vs, 44100, &[]));},
+                                        Ok(val) => {
+                                            output[i].push(val(fs, ls, vs, 44100, &[]));
+                                        }
+                                        Err(_) => {
+                                            output[i].push(f1(fs, ls, vs, 44100, &[]));
+                                        }
                                     }
                                 }
                             }
@@ -1006,31 +1333,39 @@ fn start_app(working_file: &str) -> Result<()> {
                                 }
                             })
                             .unwrap();
-                            std::thread::sleep(std::time::Duration::from_secs(100));
+                            std::thread::sleep(std::time::Duration::from_secs(
+                                max_len as u64 / 44100,
+                            ));
                         });
                     }
                 }
             }
             _ => (),
         }
-    if app.should_leave { break; };
+        if app.should_leave {
+            break;
+        };
     }
     stdout().execute(LeaveAlternateScreen)?;
     disable_raw_mode()?;
     Ok(())
 }
-fn main()  {
+fn main() {
     let cli = Cli::parse();
 
     use std::path::Path;
     let mut working_file: &str = "project";
     if let Some(path) = cli.path.as_deref() {
         if std::path::Path::new(path).is_dir() {
-            let _ = std::env::set_current_dir(path); }
-        else { 
+            let _ = std::env::set_current_dir(path);
+        } else {
             let path = Path::new(path);
-            working_file = path.file_name().unwrap_or_default().to_str().unwrap_or_default();
-            let _ = std::env::set_current_dir(path.parent().unwrap_or(Path::new("/"))); 
+            working_file = path
+                .file_name()
+                .unwrap_or_default()
+                .to_str()
+                .unwrap_or_default();
+            let _ = std::env::set_current_dir(path.parent().unwrap_or(Path::new("/")));
         };
     }
 

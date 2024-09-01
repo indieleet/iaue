@@ -10,6 +10,9 @@ TODO
 - [ ] better workflow
     - [x] add yanking
     - [x] add pasting
+    - [x] add labels
+    - [x] add row numbers
+    - [x] add init values
     - [ ] faster insert mode edit
     - [ ] make d work in visual mode
     - [ ] make + work in visual mode
@@ -17,9 +20,6 @@ TODO
     - [ ] make = work in visual mode
     - [ ] paste count of times
     - [ ] add multitabs
-    - [ ] add init values
-    - [ ] add labels
-    - [ ] add row numbers
 - [ ] add constant frequency, length, etc mode
 - [ ] add fxes on tracks
 - [ ] more generative features
