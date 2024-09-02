@@ -6,11 +6,11 @@ TODO
 - [x] add support for themes
 - [x] add init values for every row
 - [x] render file to wav
+- [x] fix render of cell
 - [ ] effects for notes
 - [ ] add fxes on tracks
 - [ ] add support for cargo dirs
 - [ ] put render in different thread
-- [ ] fix render of cell
 - [ ] fix rows bounds
 - [ ] better workflow
     - [x] add yanking

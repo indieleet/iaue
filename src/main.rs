@@ -60,6 +60,10 @@ impl App<'_> {
             Span::from(self.normal_cursor.y.to_string()).style(self.theme["orange"]);
         self.cols[0] = cols;
     }
+    fn count_bound(&self) -> usize {
+        let bound = self.cols[self.normal_cursor.x as usize][self.normal_cursor.y as usize].iter().map(|it| it.content.len() + 1).sum::<usize>();
+        if bound < 14 { 14 } else { bound }
+    }
 }
 
 #[derive(Debug)]
@@ -108,13 +112,15 @@ impl Widget for TableWithCells<'_> {
             Constraint::Max(3),
         ])
         .split(constr_col[1]);
-
+        let temp_bound = self.app.count_bound(); //TODO: don't call this fn every time
         let constr_x = ratatui::layout::Layout::default()
             .direction(Direction::Horizontal)
             .constraints(
                 [
                     vec![Constraint::Max(4)],
-                    vec![Constraint::Max(14); self.app.cols.len() - 1],
+                    vec![Constraint::Max(14); self.app.normal_cursor.x.saturating_sub(1) as usize],
+                    vec![Constraint::Max(temp_bound as u16)] ,
+                    vec![Constraint::Max(14); self.app.cols.len() - self.app.normal_cursor.x as usize - 1],
                 ]
                 .concat(),
             )
@@ -131,6 +137,7 @@ impl Widget for TableWithCells<'_> {
             (self.app.visual_cursor.y, self.app.normal_cursor.y)
         };
 
+        //Highlight line
         match self.app.current_mode {
             Mode::Normal | Mode::Insert => {
                 buf.set_span(
@@ -148,10 +155,13 @@ impl Widget for TableWithCells<'_> {
                 .constraints(vec![Constraint::Max(1); col.len()])
                 .split(constr_x[col_i]);
             for (i, el) in col.iter().enumerate() {
+                let curr_len = el.len();
+                let line_bound = if curr_len > 7 { 7 } else { curr_len };
+                let bounded_el = if (col_i == self.app.normal_cursor.x as usize) && (i == self.app.normal_cursor.y as usize) { &el[..] } else { &el[..line_bound] };
                 let constr_c = if col_i != 0 {
                     layout::Layout::default()
                         .direction(Direction::Horizontal)
-                        .constraints(vec![Constraint::Max(4); el.len()])
+                        .constraints(bounded_el.iter().map(|it| Constraint::Max(it.content.len() as u16 + 1)).collect::<Vec<_>>())
                         .split(constr_y[i])
                 } else {
                     layout::Layout::default()
@@ -159,8 +169,7 @@ impl Widget for TableWithCells<'_> {
                         .constraints(vec![Constraint::Max(3)])
                         .split(constr_y[i])
                 };
-
-                for (ci, c) in el.iter().enumerate() {
+                for (ci, c) in bounded_el.iter().enumerate() {
                     let (cell_style, inside_style) = match self.app.current_mode {
                         Mode::Visual
                             if (i >= min_vy as usize && i <= max_vy as usize)
@@ -183,25 +192,26 @@ impl Widget for TableWithCells<'_> {
                         }
                         _ => (Modifier::default(), Modifier::default()),
                     };
-
+                    let c_len = if c.content.is_empty() { 1 } else { c.content.len() as u16 };
+                    let printed_cell = if !c.content.is_empty() { &c.clone().patch_style(cell_style) } else { &Span::from(" ").patch_style(cell_style) };
                     buf.set_span(
                         constr_c[ci].x,
                         constr_c[ci].y,
-                        &c.clone().patch_style(cell_style),
-                        4,
+                        printed_cell,
+                        c_len,
                     );
                     match ci {
                         0 | 2 | 4 if (i > 1) && (col_i > 0) => {
                             buf.set_span(
-                                constr_c[ci].x + 1,
+                                constr_c[ci].x + c_len,
                                 constr_c[ci].y,
                                 &Span::from("/").style(inside_style),
                                 1,
                             );
                         }
-                        1 | 3 | 5 if (i > 1) && (col_i > 0) => {
+                        ci if (i > 1) && (col_i > 0) => {
                             buf.set_span(
-                                constr_c[ci].x + 1,
+                                constr_c[ci].x + c_len,
                                 constr_c[ci].y,
                                 &Span::from(" ").set_style(inside_style),
                                 1,
@@ -739,6 +749,23 @@ fn start_app(working_file: &str) -> Result<()> {
                 }
             },
             Event::Key(KeyEvent {
+                code: KeyCode::Char(','),
+                ..
+            }) => match app.current_mode {
+                Mode::Normal | Mode::Visual => {}
+                Mode::Insert => {
+                    let temp_span = app.cols[app.normal_cursor.x as usize]
+                        [app.normal_cursor.y as usize][app.insert_cursor.x as usize]
+                        .clone();
+                    app.cols[app.normal_cursor.x as usize][app.normal_cursor.y as usize]
+                        [app.insert_cursor.x as usize]
+                        .content = (temp_span.content.to_string() + ",").into();
+                }
+                Mode::Command => {
+                    app.command_buf.push(',');
+                }
+            },
+            Event::Key(KeyEvent {
                 code: KeyCode::Esc, ..
             }) => {
                 app.current_mode = Mode::Normal;
@@ -791,13 +818,14 @@ fn start_app(working_file: &str) -> Result<()> {
                     }
                     Mode::Insert => {
                         let new_cursor_insert = app.insert_cursor.x as isize - count as isize;
-                        let insert_bound = if app.normal_cursor.y == 0 {
-                            1
-                        } else if app.normal_cursor.y == 1 {
-                            3
-                        } else {
-                            7
-                        };
+                        let insert_bound = app.cols[app.normal_cursor.x as usize][app.normal_cursor.y as usize].len() as isize;
+                       // let insert_bound = if app.normal_cursor.y == 0 {
+                       //     1
+                       // } else if app.normal_cursor.y == 1 {
+                       //     3
+                       // } else {
+                       //     7
+                       // };
                         let new_cursor_normal = app.normal_cursor.x as isize
                             - (((new_cursor_insert - insert_bound + 1) / insert_bound).abs());
                         if new_cursor_normal >= 0 {
@@ -881,13 +909,14 @@ fn start_app(working_file: &str) -> Result<()> {
                         };
                     }
                     Mode::Insert => {
-                        let insert_bound = if app.normal_cursor.y == 0 {
-                            1
-                        } else if app.normal_cursor.y == 1 {
-                            3
-                        } else {
-                            7
-                        };
+                        let insert_bound = app.cols[app.normal_cursor.x as usize][app.normal_cursor.y as usize].len() as u16;
+                       // let insert_bound = if app.normal_cursor.y == 0 {
+                       //     1
+                       // } else if app.normal_cursor.y == 1 {
+                       //     3
+                       // } else {
+                       //     7
+                       // };
                         let new_cursor_insert = app.insert_cursor.x + count as u16;
                         let new_cursor_normal = app
                             .normal_cursor
@@ -970,13 +999,6 @@ fn start_app(working_file: &str) -> Result<()> {
                         app.command_buf.push('+');
                     }
                 }
-                // let len_rows = app.rows[y_bound as usize - 1].len();
-                // if (y_bound as usize) < app.rows.len() {
-                //     app.rows[y_bound as usize].extend(vec![vec![Span::from("1/1");3]; (app.normal_cursor.x as usize + 1).saturating_sub(len_rows - 1)]);
-                // }
-                // else {
-                //     app.rows.push(vec![vec![Span::from("1/1"); 3]; app.normal_cursor.x as usize + 1]);
-                // }
             }
             Event::Key(KeyEvent {
                 code: KeyCode::Char('t'),
@@ -984,20 +1006,34 @@ fn start_app(working_file: &str) -> Result<()> {
             }) => {
                 match app.current_mode {
                     Mode::Insert | Mode::Normal | Mode::Visual => {
-                        app.cols[app.normal_cursor.x as usize][app.normal_cursor.y as usize].extend(vec![Span::default(), Span::default()]);
+                        app.cols[app.normal_cursor.x as usize][app.normal_cursor.y as usize].extend(vec![Span::from("0"), Span::from("0")]);
                         app.count_lines();
                     }
                     Mode::Command => {
                         app.command_buf.push('t');
                     }
                 }
-                // let len_rows = app.rows[y_bound as usize - 1].len();
-                // if (y_bound as usize) < app.rows.len() {
-                //     app.rows[y_bound as usize].extend(vec![vec![Span::from("1/1");3]; (app.normal_cursor.x as usize + 1).saturating_sub(len_rows - 1)]);
-                // }
-                // else {
-                //     app.rows.push(vec![vec![Span::from("1/1"); 3]; app.normal_cursor.x as usize + 1]);
-                // }
+            }
+            Event::Key(KeyEvent {
+                code: KeyCode::Char('T'),
+                ..
+            }) => {
+                match app.current_mode {
+                    Mode::Normal | Mode::Visual => {},
+                    Mode::Insert => {
+                        if app.insert_cursor.x % 2 == 0 {
+                            app.cols[app.normal_cursor.x as usize][app.normal_cursor.y as usize].remove(app.insert_cursor.x as usize);
+                            app.cols[app.normal_cursor.x as usize][app.normal_cursor.y as usize].remove(app.insert_cursor.x as usize - 1 );
+                        }
+                        else {
+                            app.cols[app.normal_cursor.x as usize][app.normal_cursor.y as usize].remove(app.insert_cursor.x as usize + 1);
+                            app.cols[app.normal_cursor.x as usize][app.normal_cursor.y as usize].remove(app.insert_cursor.x as usize);
+                        };
+                    }
+                    Mode::Command => {
+                        app.command_buf.push('T');
+                    }
+                }
             }
             Event::Key(KeyEvent {
                 code: KeyCode::Char('='),
