@@ -979,6 +979,27 @@ fn start_app(working_file: &str) -> Result<()> {
                 // }
             }
             Event::Key(KeyEvent {
+                code: KeyCode::Char('t'),
+                ..
+            }) => {
+                match app.current_mode {
+                    Mode::Insert | Mode::Normal | Mode::Visual => {
+                        app.cols[app.normal_cursor.x as usize][app.normal_cursor.y as usize].extend(vec![Span::default(), Span::default()]);
+                        app.count_lines();
+                    }
+                    Mode::Command => {
+                        app.command_buf.push('t');
+                    }
+                }
+                // let len_rows = app.rows[y_bound as usize - 1].len();
+                // if (y_bound as usize) < app.rows.len() {
+                //     app.rows[y_bound as usize].extend(vec![vec![Span::from("1/1");3]; (app.normal_cursor.x as usize + 1).saturating_sub(len_rows - 1)]);
+                // }
+                // else {
+                //     app.rows.push(vec![vec![Span::from("1/1"); 3]; app.normal_cursor.x as usize + 1]);
+                // }
+            }
+            Event::Key(KeyEvent {
                 code: KeyCode::Char('='),
                 ..
             }) => match app.current_mode {
