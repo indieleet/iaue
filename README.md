@@ -5,8 +5,13 @@ TODO
 - [x] add row highlight
 - [x] add support for themes
 - [x] add init values for every row
-- [ ] render file to wav
+- [x] render file to wav
+- [ ] effects for notes
+- [ ] add fxes on tracks
+- [ ] add support for cargo dirs
 - [ ] put render in different thread
+- [ ] fix render of cell
+- [ ] fix rows bounds
 - [ ] better workflow
     - [x] add yanking
     - [x] add pasting
@@ -21,15 +26,10 @@ TODO
     - [ ] paste count of times
     - [ ] add multitabs
 - [ ] add constant frequency, length, etc mode
-- [ ] add fxes on tracks
 - [ ] more generative features
     - [ ] random builtin instruments and fxes
 - [ ] document commands
-- [ ] fix render of cell
-- [ ] fix rows bounds
-- [ ] effects for notes
 - [ ] remove every unwrap
-- [ ] add support for cargo dirs
 - [ ] audio editor
 - [ ] add realtime mode
 - [ ] sunvox support
