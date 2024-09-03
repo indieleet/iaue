@@ -259,6 +259,7 @@ fn render(app: &mut App) -> Vec<f32> {
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .status()
+        .inspect_err(|e| app.command_buf = e.to_string())
     .unwrap();
     let mut output: Vec<Vec<Vec<f32>>> = vec![Vec::new(); app.cols.len()];
     let mut unique_fn: Vec<String> = Vec::new();
@@ -295,27 +296,76 @@ fn render(app: &mut App) -> Vec<f32> {
                             .collect();
                         (fs, ls, vs) = (elems[0], elems[1], elems[2]);
                     } else {
-                        let elems: Vec<_> = el.iter().take(6).clone().collect();
+                        let mut pushed_args = Vec::new();
+                        let el_iter = &mut el.iter();
+                        let elems: Vec<_> = el_iter.take(6).collect();
                         let mut vec_args = Vec::with_capacity(3);
                         for indx in 0..3 {
                             vec_args.push(
-                                str::parse::<f32>(&elems[indx * 2].content).unwrap_or(0.0)
-                                    / str::parse::<f32>(&elems[indx * 2 + 1].content)
-                                        .unwrap_or(0.0),
+                                str::parse::<f32>(&elems[indx * 2].content).unwrap_or(0.0) / str::parse::<f32>(&elems[indx * 2 + 1].content).unwrap_or(0.0),
                             );
                         }
                         let (f, l, v) = (vec_args[0], vec_args[1], vec_args[2]);
                         (fs, ls, vs) = (fs * f, ls * l, v * vs);
-                        //(ft, lt, vt) = (fs * f, ls * l, v * vs); // TODO: REMOVE THIS
-                        let pushed_fn = &fns[&el[6].content.to_string()];
-                        match pushed_fn {
-                            Ok(val) => {
-                                output[i].push(val(fs, ls, vs, 44100, &[]));
-                            }
-                            Err(_) => {
-                                output[i].push(f1(fs, ls, vs, 44100, &[]));
+                        pushed_args.push((fs, ls, vs));
+                        let pushed_fn = &fns[&el_iter.next().unwrap_or(&Span::from("0")).content.to_string()];
+                        let (mut fc, mut lc,  mut vc) = (fs, ls, vs);
+                        for note_param in el_iter.as_slice().chunks(2) {
+                            let note_fx = &note_param[0].content;
+                            let fx_args = &note_param[1].content.split(',').map(|it| it.to_string()).collect::<Vec<_>>();
+                            match note_fx.to_string().as_str() {
+                                // 0: Layer new Notes relative to previous
+                                // 1: Layer new note Additive
+                                // 2: use Constant Frequency for one line
+                                // 3: use Constant Duration for one line
+                                // 4: use Constant Velocity for one line
+                                // 5: Repeat Note
+                                // 6: Send Parameters
+                                // 7: Override current Frequency with constant value
+                                // 8: Override current Duration with constant value
+                                // 9: Override current Velocity with constant value
+                                // 10: Don't override current values
+                                // 11: Slice current note
+                                "0" => {
+                                    (fc, lc, vc) = ( 
+                                    fc * fx_args.first().unwrap_or(&"1".to_string()).split("/").map(|it| it.parse::<f32>().unwrap_or(1.0)).reduce(|x, y| x / y).unwrap_or(1.0), 
+                                    lc, 
+                                    vc * fx_args.get(1).unwrap_or(&"1".to_string()).split("/").map(|it| it.parse::<f32>().unwrap_or(1.0)).reduce(|x, y| x / y).unwrap_or(1.0));
+                                    pushed_args.push((fc, lc, vc));
+                                },
+                                "1" => {
+                                    pushed_args.push((
+                                    fs * fx_args.first().unwrap_or(&"1".to_string()).split("/").map(|it| it.parse::<f32>().unwrap_or(1.0)).reduce(|x, y| x / y).unwrap_or(1.0), 
+                                    ls, 
+                                    vs * fx_args.get(1).unwrap_or(&"1".to_string()).split("/").map(|it| it.parse::<f32>().unwrap_or(1.0)).reduce(|x, y| x / y).unwrap_or(1.0)))
+                                },
+                                "2" => { pushed_args[0] = (44100.0 / fx_args.first().unwrap_or(&fs.to_string()).parse::<f32>().unwrap_or(fs), ls, vs);},
+
+                                "3" => { pushed_args[0] = (fs, fx_args.first().unwrap_or(&ls.to_string()).parse::<f32>().unwrap_or(ls), vs);},
+
+                                "4" => { pushed_args[0] = (fs, ls, fx_args.first().unwrap_or(&vs.to_string()).parse::<f32>().unwrap_or(vs));}
+                                _ => {}
                             }
                         }
+                        //(ft, lt, vt) = (fs * f, ls * l, v * vs); // TODO: REMOVE THIS
+                        let mut temp_vec: Vec<Vec<f32>> = Vec::new();
+                        for (fs, ls, vs) in pushed_args {
+                            match pushed_fn {
+                                Ok(val) => {
+                                    temp_vec.push(val(fs, ls, vs, 44100, &[]));
+                                }
+                                Err(_) => {
+                                    temp_vec.push(f1(fs, ls, vs, 44100, &[]));
+                                }
+                            }
+                        }
+                        let mut sum_vec = vec![0.0; temp_vec[0].len()];
+                        for el in temp_vec {
+                            for (i, sample) in el.iter().enumerate() {
+                                sum_vec[i] += sample;
+                            }
+                        }
+                        output[i].push(sum_vec);
                     }
                 }
             }
@@ -569,7 +619,7 @@ fn start_app(working_file: &str) -> Result<()> {
     };
     let editor = std::env::var("EDITOR").unwrap_or("nvim".to_string());
     let mut rand_iter = core::iter::repeat_with(|| fastrand::u8(0..9));
-    let mut fn_status = String::new();
+    let fn_status = String::new();
     let full_path_lib =
         std::path::Path::new(&std::env::current_dir().unwrap().to_str().unwrap_or("/"))
             .join(app.file_name.clone() + ".rs");
@@ -766,6 +816,23 @@ fn start_app(working_file: &str) -> Result<()> {
                 }
             },
             Event::Key(KeyEvent {
+                code: KeyCode::Char('/'),
+                ..
+            }) => match app.current_mode {
+                Mode::Normal | Mode::Visual => {}
+                Mode::Insert => {
+                    let temp_span = app.cols[app.normal_cursor.x as usize]
+                        [app.normal_cursor.y as usize][app.insert_cursor.x as usize]
+                        .clone();
+                    app.cols[app.normal_cursor.x as usize][app.normal_cursor.y as usize]
+                        [app.insert_cursor.x as usize]
+                        .content = (temp_span.content.to_string() + "/").into();
+                }
+                Mode::Command => {
+                    app.command_buf.push('/');
+                }
+            },
+            Event::Key(KeyEvent {
                 code: KeyCode::Esc, ..
             }) => {
                 app.current_mode = Mode::Normal;
@@ -814,7 +881,8 @@ fn start_app(working_file: &str) -> Result<()> {
                 match app.current_mode {
                     Mode::Normal | Mode::Visual => {
                         //let x_bound = app.rows[app.normal_cursor.y as usize].len() as u16;
-                        app.normal_cursor.x = app.normal_cursor.x.saturating_sub(count);
+                        let final_cursor = app.normal_cursor.x.saturating_sub(count);
+                        if (final_cursor as usize) < app.cols[app.normal_cursor.x as usize].len() { app.normal_cursor.x = final_cursor };
                     }
                     Mode::Insert => {
                         let new_cursor_insert = app.insert_cursor.x as isize - count as isize;
@@ -947,7 +1015,7 @@ fn start_app(working_file: &str) -> Result<()> {
                 let _ = &app.current_times.clear();
                 match app.current_mode {
                     Mode::Normal | Mode::Visual => {
-                        app.normal_cursor.y = if count <= y_bound - 1 {
+                        app.normal_cursor.y = if count < y_bound {
                             count
                         } else {
                             y_bound - 1
@@ -971,7 +1039,7 @@ fn start_app(working_file: &str) -> Result<()> {
                 let _ = &app.current_times.clear();
                 match app.current_mode {
                     Mode::Normal | Mode::Visual => {
-                        app.normal_cursor.y = if count <= y_bound - 1 {
+                        app.normal_cursor.y = if count < y_bound {
                             count
                         } else {
                             y_bound - 1
@@ -1291,98 +1359,9 @@ fn start_app(working_file: &str) -> Result<()> {
                 code: KeyCode::Char('r'),
                 ..
             }) => {
-                let full_path_lib = std::env::current_dir()
-                    .unwrap()
-                    .join(app.file_name.clone() + ".rs");
-                let lib_name =
-                    std::path::Path::new(&("lib".to_string().to_owned() + &app.file_name + ".so"))
-                        .canonicalize()
-                        .unwrap();
-                let comp_status = std::process::Command::new("rustc")
-                    .arg("-C")
-                    .arg("target-feature=-crt-static")
-                    .arg("--crate-type")
-                    .arg("cdylib")
-                    .arg(&full_path_lib)
-                    .stdout(Stdio::null())
-                    .stderr(Stdio::null())
-                    .status()?;
-                let mut output: Vec<Vec<Vec<f32>>> = vec![Vec::new(); app.cols.len()];
-                let (mut ft, mut lt, mut vt) = (440.0, 1.0, 1.0);
-                let mut unique_fn: Vec<String> = Vec::new();
-                for col in &app.cols[1..] {
-                    for el in &col[2..] {
-                        if !unique_fn.contains(&el[6].to_string()) {
-                            unique_fn.push(el[6].to_string().clone());
-                        }
-                    }
-                }
-                let mut fns = std::collections::HashMap::new();
-                fn f1(_f: f32, l: f32, _v: f32, t: usize, _p: &[f32]) -> Vec<f32> {
-                    vec![0.0; (l * t as f32) as usize]
-                }
-                if comp_status.success() {
-                    unsafe {
-                        let lib = libloading::Library::new(lib_name).unwrap();
-                        for el in unique_fn {
-                            let f0 = lib.get::<libloading::Symbol<
-                                unsafe extern "C" fn(f32, f32, f32, usize, &[f32]) -> Vec<f32>,
-                            >>(
-                                ("f".to_string() + &el).as_bytes()
-                            );
-                            fns.insert(el.clone(), f0);
-                        }
-
-                        for (i, col) in app.cols[1..].iter().enumerate() {
-                            let (mut fs, mut ls, mut vs) = (440.0, 1.0, 1.0);
-                            for (i_el, el) in col[1..].iter().enumerate() {
-                                if i_el == 0 {
-                                    let elems: Vec<_> = el
-                                        .iter()
-                                        .take(3)
-                                        .clone()
-                                        .map(|it| str::parse::<f32>(&it.content).unwrap_or(0.0))
-                                        .collect();
-                                    (fs, ls, vs) = (elems[0], elems[1], elems[2]);
-                                } else {
-                                    let elems: Vec<_> = el.iter().take(6).clone().collect();
-                                    let mut vec_args = Vec::with_capacity(3);
-                                    for indx in 0..3 {
-                                        vec_args.push(
-                                            str::parse::<f32>(&elems[indx * 2].content)
-                                                .unwrap_or(0.0)
-                                                / str::parse::<f32>(&elems[indx * 2 + 1].content)
-                                                    .unwrap_or(0.0),
-                                        );
-                                    }
-                                    let (f, l, v) = (vec_args[0], vec_args[1], vec_args[2]);
-                                    (fs, ls, vs) = (fs * f, ls * l, v * vs);
-                                    (ft, lt, vt) = (fs * f, ls * l, v * vs); // TODO: REMOVE THIS
-                                    let pushed_fn = &fns[&el[6].content.to_string()];
-                                    match pushed_fn {
-                                        Ok(val) => {
-                                            output[i].push(val(fs, ls, vs, 44100, &[]));
-                                        }
-                                        Err(_) => {
-                                            output[i].push(f1(fs, ls, vs, 44100, &[]));
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        let max_len = output
-                            .iter()
-                            .map(|it| it.iter().flatten().count())
-                            .max()
-                            .unwrap_or(0);
-                        let mut out_vec = vec![0.0; max_len];
-                        for column in output {
-                            for (i, el) in column.iter().flatten().enumerate() {
-                                out_vec[i] += *el;
-                            }
-                        }
-                        let mut out_vec_iter = out_vec.into_iter();
-                        fn_status = format!("{}, {}, {}, {}", ft, lt, vt, (max_len / 44100) as f32);
+                let out_vec = render(&mut app);
+                let max_len = out_vec.len();
+                let mut out_vec_iter = out_vec.into_iter();
                         std::thread::spawn(move || {
                             let _aud = run_output_device(app.audio_params, move |data| {
                                 for samples in data {
@@ -1395,8 +1374,6 @@ fn start_app(working_file: &str) -> Result<()> {
                             ));
                         });
                     }
-                }
-            }
             _ => (),
         }
         if app.should_leave {

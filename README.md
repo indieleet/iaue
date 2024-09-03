@@ -8,6 +8,18 @@ TODO
 - [x] render file to wav
 - [x] fix render of cell
 - [ ] effects for notes
+    - [x] 0: Layer new Notes relative to previous
+    - [x] 1: Layer new note Additive
+    - [x] 2: use Constant Frequency for one line
+    - [x] 3: use Constant Duration for one line
+    - [x] 4: use Constant Velocity for one line
+    - [ ] 5: Repeat Note
+    - [ ] 6: Send Parameters
+    - [ ] 7: Override current Frequency with constant value
+    - [ ] 8: Override current Duration with constant value
+    - [ ] 9: Override current Velocity with constant value
+    - [ ] 10: Don't override current values
+    - [ ] 11: Slice current note
 - [ ] add fxes on tracks
 - [ ] add support for cargo dirs
 - [ ] put render in different thread
