@@ -13,13 +13,17 @@ TODO
     - [x] 2: use Constant Frequency for one line
     - [x] 3: use Constant Duration for one line
     - [x] 4: use Constant Velocity for one line
-    - [ ] 5: Repeat Note
-    - [ ] 6: Send Parameters
-    - [ ] 7: Override current Frequency with constant value
-    - [ ] 8: Override current Duration with constant value
-    - [ ] 9: Override current Velocity with constant value
-    - [ ] 10: Don't override current values
-    - [ ] 11: Slice current note
+    - [x] 5: Repeat Note
+    - [x] 6: Send Parameters
+    - [x] 7: Override current Frequency with constant value
+    - [x] 8: Override current Duration with constant value
+    - [x] 9: Override current Velocity with constant value
+    - [x] 10: Don't override current values
+    - [x] 11: Slice current note
+    - [x] 12: use random Frequency for one line
+    - [x] 13: use random Duration for one line
+    - [x] 14: use random Velocity for one line
+    - [x] 15: use random Parameters for one line
 - [ ] add fxes on tracks
 - [ ] add support for cargo dirs
 - [ ] put render in different thread

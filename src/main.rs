@@ -257,10 +257,13 @@ fn render(app: &mut App) -> Vec<f32> {
         .arg("cdylib")
         .arg(&full_path_lib)
         .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status()
-        .inspect_err(|e| app.command_buf = e.to_string())
+        .stderr(Stdio::piped())
+        .output()
+        //.inspect_err(|e| app.command_buf = e.to_string())
     .unwrap();
+    let err_out = std::str::from_utf8(&comp_status.stderr).unwrap_or("meh");
+    app.command_buf = err_out.to_string();
+      
     let mut output: Vec<Vec<Vec<f32>>> = vec![Vec::new(); app.cols.len()];
     let mut unique_fn: Vec<String> = Vec::new();
     for col in &app.cols[1..] {
@@ -274,7 +277,7 @@ fn render(app: &mut App) -> Vec<f32> {
     fn f1(_f: f32, l: f32, _v: f32, t: usize, _p: &[f32]) -> Vec<f32> {
         vec![0.0; (l * t as f32) as usize]
     }
-    if comp_status.success() {
+    if comp_status.status.success() {
         unsafe {
             let lib = libloading::Library::new(lib_name).unwrap();
             for el in unique_fn {
@@ -306,10 +309,14 @@ fn render(app: &mut App) -> Vec<f32> {
                             );
                         }
                         let (f, l, v) = (vec_args[0], vec_args[1], vec_args[2]);
+                        let (old_f, old_l, old_v) = (fs, ls, vs); 
                         (fs, ls, vs) = (fs * f, ls * l, v * vs);
-                        pushed_args.push((fs, ls, vs));
+                        let (mut new_f, mut new_l, mut new_v) = (fs, ls, vs); 
+                        let (mut fc, mut lc,  mut vc) = (new_f, new_l, new_v);
                         let pushed_fn = &fns[&el_iter.next().unwrap_or(&Span::from("0")).content.to_string()];
-                        let (mut fc, mut lc,  mut vc) = (fs, ls, vs);
+                        let mut note_repeat = 1;
+                        let mut slice_param = 1.0;
+                        let mut fx_params_slice = Vec::new();
                         for note_param in el_iter.as_slice().chunks(2) {
                             let note_fx = &note_param[0].content;
                             let fx_args = &note_param[1].content.split(',').map(|it| it.to_string()).collect::<Vec<_>>();
@@ -339,33 +346,108 @@ fn render(app: &mut App) -> Vec<f32> {
                                     ls, 
                                     vs * fx_args.get(1).unwrap_or(&"1".to_string()).split("/").map(|it| it.parse::<f32>().unwrap_or(1.0)).reduce(|x, y| x / y).unwrap_or(1.0)))
                                 },
-                                "2" => { pushed_args[0] = (44100.0 / fx_args.first().unwrap_or(&fs.to_string()).parse::<f32>().unwrap_or(fs), ls, vs);},
+                                "2" => { fs = 44100.0 / fx_args.first().unwrap_or(&fs.to_string()).parse::<f32>().unwrap_or(fs);},
 
-                                "3" => { pushed_args[0] = (fs, fx_args.first().unwrap_or(&ls.to_string()).parse::<f32>().unwrap_or(ls), vs);},
+                                "3" => { ls = fx_args.first().unwrap_or(&ls.to_string()).parse::<f32>().unwrap_or(ls);},
 
-                                "4" => { pushed_args[0] = (fs, ls, fx_args.first().unwrap_or(&vs.to_string()).parse::<f32>().unwrap_or(vs));}
+                                "4" => { vs = fx_args.first().unwrap_or(&vs.to_string()).parse::<f32>().unwrap_or(vs);}
+
+                                "5" => { note_repeat *= fx_args.first().unwrap_or(&"1".to_string()).parse::<usize>().unwrap_or(1); }
+
+                                "6" => { fx_params_slice.extend(fx_args.iter().map(|it| it.parse::<f32>().unwrap_or(0.0))); },
+
+                                "7" => { new_f = 44100.0 / fx_args.first().unwrap_or(&fs.to_string()).parse::<f32>().unwrap_or(fs);
+                                    fs = new_f;
+                                },
+
+                                "8" => { new_l = fx_args.first().unwrap_or(&ls.to_string()).parse::<f32>().unwrap_or(ls);
+                                    fs = new_f;
+                                },
+
+                                "9" => { new_v = fx_args.first().unwrap_or(&vs.to_string()).parse::<f32>().unwrap_or(vs);
+                                    fs = new_f;
+                                },
+
+                                "10" => { (new_f, new_l, new_v) = (old_f, old_l, old_v); },
+                                "11" => { 
+                                    note_repeat *= fx_args.first().unwrap_or(&"1".to_string()).parse::<usize>().unwrap_or(1); 
+                                    slice_param = if note_repeat == 0 { 1.0 } else { note_repeat as f32 };
+},
+                                "12" => {
+                                    let bound = fx_args.first().unwrap_or(&"1".to_string()).parse::<usize>().unwrap_or(1);
+                                    let mut rand_iter = core::iter::repeat_with(|| fastrand::usize(1..bound));
+                                    fs *= rand_iter.next().unwrap_or(1) as f32 / rand_iter.next().unwrap_or(1) as f32;
+                                },
+                                "13" => {
+                                    let bound = fx_args.first().unwrap_or(&"1".to_string()).parse::<usize>().unwrap_or(1);
+                                    let mut rand_iter = core::iter::repeat_with(|| fastrand::usize(1..bound));
+                                    ls *= rand_iter.next().unwrap_or(1) as f32 / rand_iter.next().unwrap_or(1) as f32;
+                                },
+                                "14" => {
+                                    let bound = fx_args.first().unwrap_or(&"1".to_string()).parse::<usize>().unwrap_or(1);
+                                    let mut rand_iter = core::iter::repeat_with(|| fastrand::usize(1..bound));
+                                    vs *= rand_iter.next().unwrap_or(1) as f32 / rand_iter.next().unwrap_or(1) as f32;
+                                },
+                                "15" => {
+                                    let bound = fx_args.first().unwrap_or(&"1".to_string()).parse::<usize>().unwrap_or(1);
+                                    let mut rand_iter = core::iter::repeat_with(|| fastrand::usize(1..bound));
+                                    fs *= rand_iter.next().unwrap_or(1) as f32 / rand_iter.next().unwrap_or(1) as f32;
+                                    ls *= rand_iter.next().unwrap_or(1) as f32 / rand_iter.next().unwrap_or(1) as f32;
+                                    vs *= rand_iter.next().unwrap_or(1) as f32 / rand_iter.next().unwrap_or(1) as f32;
+                                },
+                                "16" => {
+                                    let bound = fx_args.first().unwrap_or(&"1".to_string()).parse::<usize>().unwrap_or(1);
+                                    let mut rand_iter = core::iter::repeat_with(|| fastrand::usize(1..bound));
+                                    fs *= rand_iter.next().unwrap_or(1) as f32 / rand_iter.next().unwrap_or(1) as f32;
+                                    new_f = fs;
+                                },
+                                "17" => {
+                                    let bound = fx_args.first().unwrap_or(&"1".to_string()).parse::<usize>().unwrap_or(1);
+                                    let mut rand_iter = core::iter::repeat_with(|| fastrand::usize(1..bound));
+                                    ls *= rand_iter.next().unwrap_or(1) as f32 / rand_iter.next().unwrap_or(1) as f32;
+                                    new_l = ls;
+                                },
+                                "18" => {
+                                    let bound = fx_args.first().unwrap_or(&"1".to_string()).parse::<usize>().unwrap_or(1);
+                                    let mut rand_iter = core::iter::repeat_with(|| fastrand::usize(1..bound));
+                                    vs *= rand_iter.next().unwrap_or(1) as f32 / rand_iter.next().unwrap_or(1) as f32;
+                                    new_v = vs;
+                                },
+                                "19" => {
+                                    let bound = fx_args.first().unwrap_or(&"1".to_string()).parse::<usize>().unwrap_or(1);
+                                    let mut rand_iter = core::iter::repeat_with(|| fastrand::usize(1..bound));
+                                    fs *= rand_iter.next().unwrap_or(1) as f32 / rand_iter.next().unwrap_or(1) as f32;
+                                    ls *= rand_iter.next().unwrap_or(1) as f32 / rand_iter.next().unwrap_or(1) as f32;
+                                    vs *= rand_iter.next().unwrap_or(1) as f32 / rand_iter.next().unwrap_or(1) as f32;
+                                    new_f = fs;
+                                    new_l = ls;
+                                    new_v = vs;
+                                },
+
                                 _ => {}
                             }
                         }
-                        //(ft, lt, vt) = (fs * f, ls * l, v * vs); // TODO: REMOVE THIS
+                        pushed_args.push((fs, ls, vs));
+                        (fs, ls, vs) = (new_f, new_l, new_v);
                         let mut temp_vec: Vec<Vec<f32>> = Vec::new();
                         for (fs, ls, vs) in pushed_args {
                             match pushed_fn {
                                 Ok(val) => {
-                                    temp_vec.push(val(fs, ls, vs, 44100, &[]));
+                                    temp_vec.push(val(fs, ls / slice_param, vs, 44100, fx_params_slice.as_slice()));
                                 }
                                 Err(_) => {
-                                    temp_vec.push(f1(fs, ls, vs, 44100, &[]));
+                                    temp_vec.push(f1(fs, ls / slice_param, vs, 44100, fx_params_slice.as_slice()));
                                 }
                             }
                         }
-                        let mut sum_vec = vec![0.0; temp_vec[0].len()];
+                        let len_of_note = temp_vec[0].len();
+                        let mut sum_vec = vec![0.0; len_of_note];
                         for el in temp_vec {
                             for (i, sample) in el.iter().enumerate() {
                                 sum_vec[i] += sample;
                             }
                         }
-                        output[i].push(sum_vec);
+                        output[i].push(sum_vec.into_iter().cycle().take(len_of_note * note_repeat).collect::<Vec<_>>());
                     }
                 }
             }
@@ -1205,13 +1287,21 @@ fn start_app(working_file: &str) -> Result<()> {
                 code: KeyCode::Char('-'),
                 ..
             }) => match app.current_mode {
-                Mode::Insert | Mode::Normal | Mode::Visual => {
+               Mode::Normal | Mode::Visual => {
                     app.cols.remove(app.normal_cursor.x as usize);
                     app.normal_cursor.x = if app.cols.len() - 1 < app.normal_cursor.x as usize {
                         app.cols.len() as u16 - 1
                     } else {
                         app.normal_cursor.x
                     };
+                }
+                Mode::Insert => {
+                    let temp_span = app.cols[app.normal_cursor.x as usize]
+                        [app.normal_cursor.y as usize][app.insert_cursor.x as usize]
+                        .clone();
+                    app.cols[app.normal_cursor.x as usize][app.normal_cursor.y as usize]
+                        [app.insert_cursor.x as usize]
+                        .content = (temp_span.content.to_string() + "-").into();
                 }
                 Mode::Command => {
                     app.command_buf.push('-');
