@@ -264,7 +264,7 @@ fn render(app: &mut App) -> Vec<f32> {
     let err_out = std::str::from_utf8(&comp_status.stderr).unwrap_or("meh");
     app.command_buf = err_out.to_string();
       
-    let mut output: Vec<Vec<Vec<f32>>> = vec![Vec::new(); app.cols.len()];
+    let mut output: Vec<Vec<f32>> = vec![Vec::new(); app.cols.len()];
     let mut unique_fn: Vec<String> = Vec::new();
     for col in &app.cols[1..] {
         for el in &col[2..] {
@@ -273,7 +273,16 @@ fn render(app: &mut App) -> Vec<f32> {
             }
         }
     }
+    let mut unique_fx: Vec<String> = Vec::new();
+    for col in &app.cols[1..] {
+        for el in &col[1][3..] {
+            if !unique_fx.contains(&el.to_string()) {
+                unique_fx.push(el.to_string().clone());
+            }
+        }
+    }
     let mut fns = std::collections::HashMap::new();
+    let mut fxes_fns = std::collections::HashMap::new();
     fn f1(_f: f32, l: f32, _v: f32, t: usize, _p: &[f32]) -> Vec<f32> {
         vec![0.0; (l * t as f32) as usize]
     }
@@ -286,18 +295,30 @@ fn render(app: &mut App) -> Vec<f32> {
                 >>(("f".to_string() + &el).as_bytes());
                 fns.insert(el.clone(), f0);
             }
-
+            for el in unique_fx {
+                let f0 = lib.get::<libloading::Symbol<
+                    unsafe extern "C" fn(&[f32], usize, &[f32]) -> Vec<f32>,
+                >>(("fx".to_string() + &el).as_bytes());
+                fxes_fns.insert(el.clone(), f0);
+            }
             for (i, col) in app.cols[1..].iter().enumerate() {
                 let (mut fs, mut ls, mut vs) = (440.0, 1.0, 1.0);
+                let mut fxes = Vec::new();
+                let mut fx_params = Vec::new();
                 for (i_el, el) in col[1..].iter().enumerate() {
                     if i_el == 0 {
-                        let elems: Vec<_> = el
-                            .iter()
+                        let el_iter = &mut el.iter();
+                        let elems: Vec<_> = el_iter
                             .take(3)
-                            .clone()
                             .map(|it| str::parse::<f32>(&it.content).unwrap_or(0.0))
                             .collect();
                         (fs, ls, vs) = (elems[0], elems[1], elems[2]);
+                        let fx_and_params = el_iter.map(|it| &it.content).collect::<Vec<_>>();
+                        for fx in fx_and_params.chunks(2)
+                        {
+                            fxes.push(fx[0]);
+                            fx_params.push(fx[1].split(',').map(|it| it.parse::<f32>().unwrap_or(0.0)).collect::<Vec<f32>>());
+                        }
                     } else {
                         let mut pushed_args = Vec::new();
                         let el_iter = &mut el.iter();
@@ -372,7 +393,7 @@ fn render(app: &mut App) -> Vec<f32> {
                                 "11" => { 
                                     note_repeat *= fx_args.first().unwrap_or(&"1".to_string()).parse::<usize>().unwrap_or(1); 
                                     slice_param = if note_repeat == 0 { 1.0 } else { note_repeat as f32 };
-},
+                                },
                                 "12" => {
                                     let bound = fx_args.first().unwrap_or(&"1".to_string()).parse::<usize>().unwrap_or(1);
                                     let mut rand_iter = core::iter::repeat_with(|| fastrand::usize(1..bound));
@@ -447,18 +468,29 @@ fn render(app: &mut App) -> Vec<f32> {
                                 sum_vec[i] += sample;
                             }
                         }
-                        output[i].push(sum_vec.into_iter().cycle().take(len_of_note * note_repeat).collect::<Vec<_>>());
+                        let out_note = sum_vec.into_iter().cycle().take(len_of_note * note_repeat);
+                        output[i].extend(out_note);
+                    }
+                }
+                for (idx, fx) in fxes.iter().enumerate() {
+                    let cur_fx = &fxes_fns[&fx.to_string()];
+                    match cur_fx {
+                        Ok(val) => {
+                            output[i] = val(output[i].as_slice(), 44100, fx_params[idx].as_slice());
+                        }
+                        Err(_) => {
+                        }
                     }
                 }
             }
             let max_len = output
                 .iter()
-                .map(|it| it.iter().flatten().count())
+                .map(|it| it.len())
                 .max()
                 .unwrap_or(0);
             out_vec = vec![0.0; max_len];
             for column in output {
-                for (i, el) in column.iter().flatten().enumerate() {
+                for (i, el) in column.iter().enumerate() {
                     out_vec[i] += *el;
                 }
             }
