@@ -466,9 +466,13 @@ fn render(app: &mut App) -> Vec<f32> {
             //fn_status = format!("{}, {}, {}, {}", ft, lt, vt, (max_len / 44100) as f32);
         }
     }
-    out_vec
+    out_vec.iter().map(|&it| if it == f32::INFINITY { f32::MAX }
+    else if it == f32::NEG_INFINITY { f32::MIN }
+    else if it.is_nan() { 0.0 }
+    else { it }
+)
+    .collect::<Vec<_>>()
 }
-
 fn render_and_save_file(app: &mut App, file_name: String) {
     use std::fs::File;
     use std::path::absolute;
@@ -964,7 +968,7 @@ fn start_app(working_file: &str) -> Result<()> {
                     Mode::Normal | Mode::Visual => {
                         //let x_bound = app.rows[app.normal_cursor.y as usize].len() as u16;
                         let final_cursor = app.normal_cursor.x.saturating_sub(count);
-                        if (final_cursor as usize) < app.cols[app.normal_cursor.x as usize].len() { app.normal_cursor.x = final_cursor };
+                        if (app.normal_cursor.y as usize) < app.cols[final_cursor as usize].len() { app.normal_cursor.x = final_cursor };
                     }
                     Mode::Insert => {
                         let new_cursor_insert = app.insert_cursor.x as isize - count as isize;
@@ -1054,9 +1058,10 @@ fn start_app(working_file: &str) -> Result<()> {
                         let new_x = app.normal_cursor.x.saturating_add(count);
                         app.normal_cursor.x = if new_x > x_bound - 1 {
                             x_bound - 1
-                        } else {
+                        } else if (app.normal_cursor.y as usize) < app.cols[new_x as usize].len() {
                             new_x
-                        };
+                        }
+                            else { app.normal_cursor.x };
                     }
                     Mode::Insert => {
                         let insert_bound = app.cols[app.normal_cursor.x as usize][app.normal_cursor.y as usize].len() as u16;
