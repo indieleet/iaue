@@ -243,14 +243,37 @@ enum Commands {
 }
 
 fn render(app: &mut App) -> Vec<f32> {
-    let mut out_vec: Vec<f32> = vec![];
+    let mut out_vec: Vec<(f32, f32)> = vec![];
+    let cur_dir = std::env::current_dir().unwrap();
+    let mut lib_name = std::path::PathBuf::new();
+    let comp_status = if cur_dir.join("cargolib").exists() {
+//cargo run --release --manifest-path=iaue/Cargo.toml
+    let full_path_lib = std::env::current_dir()
+        .unwrap()
+        .join("cargolib");
+    lib_name = std::path::Path::new(&full_path_lib)
+            .join("target")
+            .join("release")
+            .join("libcargolib.rlib")
+            .canonicalize()
+            .unwrap();
+    std::process::Command::new("cargo")
+        .arg("build")
+        .arg("--manifest-path=iaue/Cargo.toml")
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
+        .output()
+        //.inspect_err(|e| app.command_buf = e.to_string())
+    .unwrap()
+    }
+else {
     let full_path_lib = std::env::current_dir()
         .unwrap()
         .join(app.file_name.clone() + ".rs");
-    let lib_name = std::path::Path::new(&("lib".to_string().to_owned() + &app.file_name + ".so"))
+    lib_name = std::path::Path::new(&("lib".to_string().to_owned() + &app.file_name + ".so"))
         .canonicalize()
         .unwrap();
-    let comp_status = std::process::Command::new("rustc")
+    std::process::Command::new("rustc")
         .arg("-C")
         .arg("target-feature=-crt-static")
         .arg("--crate-type")
@@ -260,11 +283,12 @@ fn render(app: &mut App) -> Vec<f32> {
         .stderr(Stdio::piped())
         .output()
         //.inspect_err(|e| app.command_buf = e.to_string())
-    .unwrap();
+    .unwrap()
+    };
     let err_out = std::str::from_utf8(&comp_status.stderr).unwrap_or("meh");
     app.command_buf = err_out.to_string();
       
-    let mut output: Vec<Vec<f32>> = vec![Vec::new(); app.cols.len()];
+    let mut output: Vec<Vec<(f32, f32)>> = vec![Vec::new(); app.cols.len()];
     let mut unique_fn: Vec<String> = Vec::new();
     for col in &app.cols[1..] {
         for el in &col[2..] {
@@ -283,21 +307,22 @@ fn render(app: &mut App) -> Vec<f32> {
     }
     let mut fns = std::collections::HashMap::new();
     let mut fxes_fns = std::collections::HashMap::new();
-    fn f1(_f: f32, l: f32, _v: f32, t: usize, _p: &[f32]) -> Vec<f32> {
-        vec![0.0; (l * t as f32) as usize]
+    fn f1(_f: f32, l: f32, _v: f32, t: usize, _p: &[f32]) -> Vec<(f32, f32)> {
+        vec![(0.0, 0.0); (l * t as f32) as usize]
+
     }
     if comp_status.status.success() {
         unsafe {
             let lib = libloading::Library::new(lib_name).unwrap();
             for el in unique_fn {
                 let f0 = lib.get::<libloading::Symbol<
-                    unsafe extern "C" fn(f32, f32, f32, usize, &[f32]) -> Vec<f32>,
+                    unsafe extern "C" fn(f32, f32, f32, usize, &[f32]) -> Vec<(f32, f32)>,
                 >>(("f".to_string() + &el).as_bytes());
                 fns.insert(el.clone(), f0);
             }
             for el in unique_fx {
                 let f0 = lib.get::<libloading::Symbol<
-                    unsafe extern "C" fn(&[f32], usize, &[f32]) -> Vec<f32>,
+                    unsafe extern "C" fn(&[(f32, f32)], usize, &[f32]) -> Vec<(f32, f32)>,
                 >>(("fx".to_string() + &el).as_bytes());
                 fxes_fns.insert(el.clone(), f0);
             }
@@ -382,11 +407,11 @@ fn render(app: &mut App) -> Vec<f32> {
                                 },
 
                                 "8" => { new_l = fx_args.first().unwrap_or(&ls.to_string()).parse::<f32>().unwrap_or(ls);
-                                    fs = new_f;
+                                    ls = new_l;
                                 },
 
                                 "9" => { new_v = fx_args.first().unwrap_or(&vs.to_string()).parse::<f32>().unwrap_or(vs);
-                                    fs = new_f;
+                                    vs = new_v;
                                 },
 
                                 "10" => { (new_f, new_l, new_v) = (old_f, old_l, old_v); },
@@ -450,24 +475,27 @@ fn render(app: &mut App) -> Vec<f32> {
                         }
                         pushed_args.push((fs, ls, vs));
                         (fs, ls, vs) = (new_f, new_l, new_v);
-                        let mut temp_vec: Vec<Vec<f32>> = Vec::new();
+                        let mut temp_vec: Vec<Vec<(f32, f32)>> = Vec::new();
                         for (fs, ls, vs) in pushed_args {
                             match pushed_fn {
                                 Ok(val) => {
-                                    temp_vec.push(val(fs, ls / slice_param, vs, 44100, fx_params_slice.as_slice()));
+                                    let out_tuple = val(fs, ls / slice_param, vs, 44100, fx_params_slice.as_slice());
+                                    temp_vec.push(out_tuple);
                                 }
                                 Err(_) => {
-                                    temp_vec.push(f1(fs, ls / slice_param, vs, 44100, fx_params_slice.as_slice()));
+                                    let out_tuple = f1(fs, ls / slice_param, vs, 44100, fx_params_slice.as_slice());
+                                    temp_vec.push(out_tuple);
                                 }
                             }
                         }
                         let len_of_note = temp_vec[0].len();
-                        let mut sum_vec = vec![0.0; len_of_note];
-                        for el in temp_vec {
-                            for (i, sample) in el.iter().enumerate() {
-                                sum_vec[i] += sample;
+                        let mut sum_vec = vec![(0.0, 0.0); len_of_note];
+                            for el in temp_vec {
+                                for (i, sample) in el.iter().enumerate() {
+                                    sum_vec[i].0 += sample.0;
+                                    sum_vec[i].1 += sample.1;
+                                }
                             }
-                        }
                         let out_note = sum_vec.into_iter().cycle().take(len_of_note * note_repeat);
                         output[i].extend(out_note);
                     }
@@ -476,7 +504,8 @@ fn render(app: &mut App) -> Vec<f32> {
                     let cur_fx = &fxes_fns[&fx.to_string()];
                     match cur_fx {
                         Ok(val) => {
-                            output[i] = val(output[i].as_slice(), 44100, fx_params[idx].as_slice());
+                            let out_tuple = val(output[i].as_slice(), 44100, fx_params[idx].as_slice());
+                            output[i] = out_tuple;
                         }
                         Err(_) => {
                         }
@@ -488,21 +517,28 @@ fn render(app: &mut App) -> Vec<f32> {
                 .map(|it| it.len())
                 .max()
                 .unwrap_or(0);
-            out_vec = vec![0.0; max_len];
+            out_vec = vec![(0.0, 0.0); max_len];
             for column in output {
                 for (i, el) in column.iter().enumerate() {
-                    out_vec[i] += *el;
+                    out_vec[i].0 += el.0;
+                    out_vec[i].1 += el.1;
                 }
             }
             //let mut out_vec_iter = out_vec.into_iter();
             //fn_status = format!("{}, {}, {}, {}", ft, lt, vt, (max_len / 44100) as f32);
         }
     }
-    out_vec.iter().map(|&it| if it == f32::INFINITY { f32::MAX }
-    else if it == f32::NEG_INFINITY { f32::MIN }
-    else if it.is_nan() { 0.0 }
-    else { it }
-)
+    out_vec.iter().map(|&(it, y)| if it == f32::INFINITY { (f32::MAX, y) }
+        else if it == f32::NEG_INFINITY { (f32::MIN, y) }
+        else if it.is_nan() { (0.0, y) }
+        else { (it, y) }
+    )
+        .map(|(x, it)| if it == f32::INFINITY { (x, f32::MAX) }
+            else if it == f32::NEG_INFINITY { (x, f32::MIN) }
+            else if it.is_nan() { (x, 0.0) }
+            else { (x, it) }
+        )
+    .flat_map(|(x, y)| [x, y])
     .collect::<Vec<_>>()
 }
 fn render_and_save_file(app: &mut App, file_name: String) {
