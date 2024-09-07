@@ -245,35 +245,34 @@ enum Commands {
 fn render(app: &mut App) -> Vec<f32> {
     let mut out_vec: Vec<(f32, f32)> = vec![];
     let cur_dir = std::env::current_dir().unwrap();
-    let mut lib_name = std::path::PathBuf::new();
-    let comp_status = if cur_dir.join("cargolib").exists() {
+    let lib_name;
+    let comp_status = if cur_dir.join("cargolib/").exists() {
 //cargo run --release --manifest-path=iaue/Cargo.toml
     let full_path_lib = std::env::current_dir()
         .unwrap()
-        .join("cargolib");
+            .join("cargolib/");
+        let out = std::process::Command::new("cargo")
+            .arg("build")
+            .arg("--release")
+            .arg("--manifest-path=cargolib/Cargo.toml")
+            .stdout(Stdio::null())
+            .stderr(Stdio::piped())
+            .output()
+            //.inspect_err(|e| app.command_buf = e.to_string())
+            .unwrap();
     lib_name = std::path::Path::new(&full_path_lib)
-            .join("target")
-            .join("release")
-            .join("libcargolib.rlib")
+            .join("target/")
+            .join("release/")
+            .join("libcargolib.so")
             .canonicalize()
             .unwrap();
-    std::process::Command::new("cargo")
-        .arg("build")
-        .arg("--manifest-path=iaue/Cargo.toml")
-        .stdout(Stdio::null())
-        .stderr(Stdio::piped())
-        .output()
-        //.inspect_err(|e| app.command_buf = e.to_string())
-    .unwrap()
+        out
     }
 else {
     let full_path_lib = std::env::current_dir()
         .unwrap()
         .join(app.file_name.clone() + ".rs");
-    lib_name = std::path::Path::new(&("lib".to_string().to_owned() + &app.file_name + ".so"))
-        .canonicalize()
-        .unwrap();
-    std::process::Command::new("rustc")
+    let out = std::process::Command::new("rustc")
         .arg("-C")
         .arg("target-feature=-crt-static")
         .arg("--crate-type")
@@ -283,7 +282,11 @@ else {
         .stderr(Stdio::piped())
         .output()
         //.inspect_err(|e| app.command_buf = e.to_string())
-    .unwrap()
+    .unwrap();
+    lib_name = std::path::Path::new(&("lib".to_string().to_owned() + &app.file_name + ".so"))
+        .canonicalize()
+        .unwrap();
+        out
     };
     let err_out = std::str::from_utf8(&comp_status.stderr).unwrap_or("meh");
     app.command_buf = err_out.to_string();
