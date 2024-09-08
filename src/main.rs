@@ -552,7 +552,7 @@ fn render_and_save_file(app: &mut App, file_name: String) {
     let new_file_name = if file_name.is_empty() { app.file_name.clone() + ".wav" } else { file_name };
     let full_path = absolute(Path::new(&new_file_name)).unwrap().to_path_buf();
     let mut file = File::create(full_path).unwrap();
-    let header = wav_io::new_mono_header();
+    let header = wav_io::new_stereo_header();
     let _ = wav_io::write_to_file(&mut file, &header, &out_file);
     app.command_buf = format!("Saved to {}", new_file_name); //TODO:
 }
@@ -736,7 +736,7 @@ fn start_app(working_file: &str) -> Result<()> {
         insert_cursor: InsertCursor::default(),
         current_mode: Mode::Normal,
         audio_params: OutputDeviceParameters {
-            channels_count: 1,
+            channels_count: 2,
             sample_rate: 44100,
             channel_sample_count: 4410,
         },
@@ -779,10 +779,12 @@ fn start_app(working_file: &str) -> Result<()> {
     let fn_status = String::new();
     let full_path_lib =
         std::path::Path::new(&std::env::current_dir().unwrap().to_str().unwrap_or("/"))
-            .join(app.file_name.clone() + ".rs");
+            .join("cargolib/")
+            .join("src/")
+            .join("lib.rs");
     let full_path_file =
         std::path::Path::new(&std::env::current_dir().unwrap().to_str().unwrap_or("/"))
-            .join(app.file_name.clone() + ".tr");
+            .join("project.tr");
     app.y_bound = app.cols[app.normal_cursor.x as usize].len() as u16;
     app.count_lines();
     loop {
