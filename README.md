@@ -1,6 +1,6 @@
 # InteractiveAUdioEditor
 
-How to install && run
+How to download && run
 
 ```
 git clone https://github.com/indieleet/iaue
@@ -32,15 +32,20 @@ TODO
         - [ ] add bounds for random
     - [x] 13: use random Duration for one line
     - [x] 14: use random Velocity for one line
-    - [x] 15: use random Parameters for one line
+    - [x] 15: use random Frequency, Duration, Velocity for one line
+    - [x] 16: override current Frequency to random
+    - [x] 17: override current Duration to random
+    - [x] 18: override current Velocity to random
+    - [x] 19: override Frequency, Duration, Velocity to random
 - [x] add fxes on tracks
 - [x] add support for cargo dirs
 - [x] fix rows bounds
     - [ ] fix it in insert mode
 - [x] stereo
     - [ ] now add mono mode for better performance
-- [ ] add sidechain
-- [ ] put render in different thread
+- [x] add sidechain
+    - [ ] add fx priority
+- [x] document commands
 - [ ] better workflow
     - [x] add yanking
     - [x] add pasting
@@ -53,13 +58,15 @@ TODO
     - [ ] make - work in visual mode
     - [ ] make = work in visual mode
     - [ ] paste count of times
-    - [ ] add multitabs
+    - [ ] add multitabs 
+    - [ ] add scrolling
     - [ ] add "swap cells" key
+    - [ ] add key to see length, freq, vel of current note
+- [ ] put render in different thread
 - [ ] add constant frequency, length, etc mode
 - [ ] more generative features
     - [ ] random builtin instruments and fxes
 - [ ] add tutorial
-- [ ] document commands
 - [ ] remove every unwrap
 - [ ] audio editor
 - [ ] add oscilloscope

@@ -45,6 +45,7 @@ pub struct App<'a> {
     cols: Vec<Vec<Vec<Span<'a>>>>,
     yank_buf: Vec<Span<'a>>,
     //constrains: Vec<Constraint>,
+    help_page: usize,
     is_help: bool,
     should_leave: bool,
 }
@@ -325,7 +326,7 @@ else {
             }
             for el in unique_fx {
                 let f0 = lib.get::<libloading::Symbol<
-                    unsafe extern "C" fn(&[(f32, f32)], usize, &[f32]) -> Vec<(f32, f32)>,
+                    unsafe extern "C" fn(&[(f32, f32)], usize, &[f32], &[Vec<(f32, f32)>]) -> Vec<(f32, f32)>,
                 >>(("fx".to_string() + &el).as_bytes());
                 fxes_fns.insert(el.clone(), f0);
             }
@@ -507,7 +508,7 @@ else {
                     let cur_fx = &fxes_fns[&fx.to_string()];
                     match cur_fx {
                         Ok(val) => {
-                            let out_tuple = val(output[i].as_slice(), 44100, fx_params[idx].as_slice());
+                            let out_tuple = val(output[i].as_slice(), 44100, fx_params[idx].as_slice(), output.as_slice());
                             output[i] = out_tuple;
                         }
                         Err(_) => {
@@ -556,11 +557,12 @@ fn render_and_save_file(app: &mut App, file_name: String) {
     let _ = wav_io::write_to_file(&mut file, &header, &out_file);
     app.command_buf = format!("Saved to {}", new_file_name); //TODO:
 }
-fn open_file(app: &mut App, file_name: String) {
+fn open_file(app: &mut App, mut file_name: String) {
     use std::fs::File;
     use std::io::Read;
     //use std::env::current_dir;
     use std::path::Path;
+    if file_name.is_empty() { file_name = app.file_name.clone(); };
     let new_file = match Path::new(&file_name).canonicalize() {
         Ok(value) => value,
         Err(_) => {
@@ -577,9 +579,6 @@ fn open_file(app: &mut App, file_name: String) {
         .file_name()
         .unwrap()
         .to_str()
-        .unwrap()
-        .split(".")
-        .next()
         .unwrap()
         .to_string();
     let mut file = File::open(full_path);
@@ -609,11 +608,12 @@ fn open_file(app: &mut App, file_name: String) {
     }
 }
 
-fn save_file(app: &mut App, file_name: String) {
+fn save_file(app: &mut App, mut file_name: String) {
     use std::fs::File;
     use std::io::{BufWriter, Write};
     use std::path::absolute;
     use std::path::Path;
+    if file_name.is_empty() { file_name = app.file_name.clone(); };
     let new_file = absolute(Path::new(&file_name)).unwrap().to_path_buf();
     let full_path = match new_file.is_file() {
         true => new_file.to_path_buf(),
@@ -624,9 +624,6 @@ fn save_file(app: &mut App, file_name: String) {
         .file_name()
         .unwrap()
         .to_str()
-        .unwrap()
-        .split(".")
-        .next()
         .unwrap()
         .to_string();
     let full_path = std::path::Path::new(&std::env::current_dir().unwrap().to_str().unwrap_or("/"))
@@ -771,6 +768,7 @@ fn start_app(working_file: &str) -> Result<()> {
         ],
         yank_buf: Vec::new(),
         //constrains: vec![Constraint::Max(3); 6],
+        help_page: 0,
         is_help: false,
         should_leave: false,
     };
@@ -890,10 +888,10 @@ fn start_app(working_file: &str) -> Result<()> {
                     height: 1,
                 },
             );
-            let lines_count = help::TEXT.lines().count() as u16 + 2;
+            let lines_count = help::TEXT[app.help_page].lines().count() as u16 + 2;
             if app.is_help {
                 f.render_widget(
-                    Paragraph::new(help::TEXT).block(
+                    Paragraph::new(help::TEXT[app.help_page]).block(
                         Block::bordered()
                             .title_alignment(Alignment::Center)
                             .title("Help"),
@@ -1038,6 +1036,9 @@ fn start_app(working_file: &str) -> Result<()> {
                 let count: u16 = app.current_times.parse().unwrap_or(1);
                 let _ = &app.current_times.clear();
                 match app.current_mode {
+                    Mode::Normal | Mode::Visual | Mode::Insert if app.is_help => { 
+                        app.help_page = app.help_page.saturating_sub(count as usize);
+                    },
                     Mode::Normal | Mode::Visual => {
                         //let x_bound = app.rows[app.normal_cursor.y as usize].len() as u16;
                         let final_cursor = app.normal_cursor.x.saturating_sub(count);
@@ -1126,6 +1127,10 @@ fn start_app(working_file: &str) -> Result<()> {
                 let count: u16 = app.current_times.parse().unwrap_or(1);
                 let _ = &app.current_times.clear();
                 match app.current_mode {
+                    Mode::Normal | Mode::Visual | Mode::Insert if app.is_help => { 
+                        let new_page = app.help_page.saturating_add(count as usize);
+                        app.help_page = if new_page >= help::TEXT.len() { help::TEXT.len() - 1 } else { new_page }; 
+                    }
                     Mode::Normal | Mode::Visual => {
                         let x_bound = app.cols.len() as u16;
                         let new_x = app.normal_cursor.x.saturating_add(count);
@@ -1463,47 +1468,49 @@ fn start_app(working_file: &str) -> Result<()> {
                 code: KeyCode::Char('s'),
                 ..
             }) => {
-                use std::fs::File;
-                use std::io::{BufWriter, Write};
-                let file_cloned = &app
-                    .cols
-                    .clone()
-                    .into_iter()
-                    .map(|col| {
-                        col.into_iter()
-                            .map(|el| el.into_iter().map(|c| c.content).collect::<Vec<_>>())
-                            .collect::<Vec<_>>()
-                    })
-                    .collect::<Vec<_>>();
-                let file = File::create(&full_path_file).unwrap();
-                let mut writer = BufWriter::new(file);
-                serde_json::to_writer(&mut writer, &file_cloned).unwrap();
-                writer.flush().unwrap();
+                save_file(&mut app, "".to_string())
+                //use std::fs::File;
+                //use std::io::{BufWriter, Write};
+                //let file_cloned = &app
+                //    .cols
+                //    .clone()
+                //    .into_iter()
+                //    .map(|col| {
+                //        col.into_iter()
+                //            .map(|el| el.into_iter().map(|c| c.content).collect::<Vec<_>>())
+                //            .collect::<Vec<_>>()
+                //    })
+                //    .collect::<Vec<_>>();
+                //let file = File::create(&full_path_file).unwrap();
+                //let mut writer = BufWriter::new(file);
+                //serde_json::to_writer(&mut writer, &file_cloned).unwrap();
+                //writer.flush().unwrap();
             }
             Event::Key(KeyEvent {
                 modifiers: KeyModifiers::CONTROL,
                 code: KeyCode::Char('o'),
                 ..
             }) => {
-                use std::fs::File;
-                use std::io::Read;
-                let mut file = File::open(&full_path_file).unwrap();
-                let mut data = String::new();
-                file.read_to_string(&mut data).unwrap();
-                app.cols = serde_json::from_str::<Vec<Vec<Vec<String>>>>(&data)
-                    .unwrap()
-                    .into_iter()
-                    .map(|col| {
-                        col.into_iter()
-                            .map(|el| el.into_iter().map(Span::from).collect::<Vec<_>>())
-                            .collect::<Vec<_>>()
-                    })
-                    .collect::<Vec<_>>();
-                app.normal_cursor.x = 0;
-                app.normal_cursor.y = 0;
-                app.visual_cursor.x = 0;
-                app.visual_cursor.y = 0;
-                app.insert_cursor.x = 0;
+                //use std::fs::File;
+                //use std::io::Read;
+                //let mut file = File::open(&full_path_file).unwrap();
+                //let mut data = String::new();
+                //file.read_to_string(&mut data).unwrap();
+                //app.cols = serde_json::from_str::<Vec<Vec<Vec<String>>>>(&data)
+                //    .unwrap()
+                //    .into_iter()
+                //    .map(|col| {
+                //        col.into_iter()
+                //            .map(|el| el.into_iter().map(Span::from).collect::<Vec<_>>())
+                //            .collect::<Vec<_>>()
+                //    })
+                //    .collect::<Vec<_>>();
+                //app.normal_cursor.x = 0;
+                //app.normal_cursor.y = 0;
+                //app.visual_cursor.x = 0;
+                //app.visual_cursor.y = 0;
+                //app.insert_cursor.x = 0;
+                open_file(&mut app, "".to_string());
             }
             Event::Key(KeyEvent {
                 code: KeyCode::Enter,
@@ -1556,7 +1563,7 @@ fn main() {
     let cli = Cli::parse();
 
     use std::path::Path;
-    let mut working_file: &str = "project";
+    let mut working_file: &str = "project.tr";
     if let Some(path) = cli.path.as_deref() {
         if std::path::Path::new(path).is_dir() {
             let _ = std::env::set_current_dir(path);
