@@ -52,6 +52,8 @@ TODO
     - [x] add labels
     - [x] add row numbers
     - [x] add init values
+    - [x] make y work in visual mode
+    - [x] make p work in visual mode
     - [ ] faster insert mode edit
     - [ ] make d work in visual mode
     - [ ] make + work in visual mode

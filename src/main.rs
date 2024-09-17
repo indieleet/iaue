@@ -43,7 +43,7 @@ pub struct App<'a> {
     x_bound: u16,
     y_bound: u16,
     cols: Vec<Vec<Vec<Span<'a>>>>,
-    yank_buf: Vec<Span<'a>>,
+    yank_buf: Vec<Vec<Vec<Span<'a>>>>,
     //constrains: Vec<Constraint>,
     help_page: usize,
     is_help: bool,
@@ -639,9 +639,9 @@ fn save_file(app: &mut App, mut file_name: String) {
         })
         .collect::<Vec<_>>();
     let file = File::create(full_path).unwrap();
-    let mut writer = BufWriter::new(file);
-    serde_json::to_writer(&mut writer, &file_cloned).unwrap();
-    writer.flush().unwrap();
+    let mut buf_writer = BufWriter::new(file);
+    serde_json::to_writer(&mut buf_writer, &file_cloned).unwrap();
+    buf_writer.flush().unwrap();
 }
 
 fn exec_command(app: &mut App) {
@@ -1309,10 +1309,19 @@ fn start_app(working_file: &str) -> Result<()> {
                 code: KeyCode::Char('y'),
                 ..
             }) => match app.current_mode {
-                Mode::Insert | Mode::Normal | Mode::Visual => {
-                    app.yank_buf = app.cols[app.normal_cursor.x as usize]
+                Mode::Insert | Mode::Normal  => {
+                    app.yank_buf = vec![vec![app.cols[app.normal_cursor.x as usize]
                         [app.normal_cursor.y as usize]
-                        .clone();
+                        .clone()]];
+                }
+                Mode::Visual => {
+                    //TODO: replace to minmax
+                    app.yank_buf = app.cols[(app.normal_cursor.x as usize)..=(app.visual_cursor.x as usize)].to_vec()
+                        .iter()
+                        .map(|it|
+                        it[(app.normal_cursor.y as usize)..=(app.visual_cursor.y as usize)].to_vec()
+                        )
+                    .collect::<Vec<_>>();
                 }
                 Mode::Command => {
                     app.command_buf.push('y');
@@ -1326,7 +1335,7 @@ fn start_app(working_file: &str) -> Result<()> {
                     Mode::Insert | Mode::Normal | Mode::Visual => {
                         if !app.yank_buf.is_empty() {
                             app.cols[app.normal_cursor.x as usize]
-                                .insert(app.normal_cursor.y as usize + 1, app.yank_buf.clone());
+                                .insert(app.normal_cursor.y as usize + 1, app.yank_buf[0][0].clone());
                             app.count_lines();
                         }
                     }
@@ -1350,7 +1359,7 @@ fn start_app(working_file: &str) -> Result<()> {
                     Mode::Insert | Mode::Normal | Mode::Visual => {
                         if !app.yank_buf.is_empty() {
                             app.cols[app.normal_cursor.x as usize]
-                                .insert(app.normal_cursor.y as usize, app.yank_buf.clone());
+                                .insert(app.normal_cursor.y as usize, app.yank_buf[0][0].clone());
                             app.count_lines();
                         }
                     }
