@@ -20,6 +20,16 @@ use std::{
 use style::Styled;
 use tinyaudio::prelude::*;
 
+fn minmax_x(app: &App) -> (u16, u16) {
+    if app.normal_cursor.x < app.visual_cursor.x { (app.normal_cursor.x, app.visual_cursor.x) }
+    else { (app.visual_cursor.x, app.normal_cursor.x) }
+}
+
+fn minmax_y(app: &App) -> (u16, u16) {
+    if app.normal_cursor.y < app.visual_cursor.y { (app.normal_cursor.y, app.visual_cursor.y) }
+    else { (app.visual_cursor.y, app.normal_cursor.y) }
+}
+
 #[derive(Serialize, Deserialize)]
 struct JsonColor(String);
 
@@ -545,6 +555,7 @@ else {
     .flat_map(|(x, y)| [x, y])
     .collect::<Vec<_>>()
 }
+
 fn render_and_save_file(app: &mut App, file_name: String) {
     use std::fs::File;
     use std::path::absolute;
@@ -557,6 +568,7 @@ fn render_and_save_file(app: &mut App, file_name: String) {
     let _ = wav_io::write_to_file(&mut file, &header, &out_file);
     app.command_buf = format!("Saved to {}", new_file_name); //TODO:
 }
+
 fn open_file(app: &mut App, mut file_name: String) {
     use std::fs::File;
     use std::io::Read;
@@ -644,6 +656,11 @@ fn save_file(app: &mut App, mut file_name: String) {
     buf_writer.flush().unwrap();
 }
 
+#[inline]
+fn rename_track(app: &mut App, name: String) {
+    app.cols[app.normal_cursor.x as usize][0][0] = Span::from(name);
+}
+
 fn exec_command(app: &mut App) {
     let splitted_commands = app.command_buf[1..]
         .split_whitespace()
@@ -682,6 +699,9 @@ fn exec_command(app: &mut App) {
         }
         "render" => {
             render_and_save_file(app, splitted_commands[1..].join(" "));
+        }
+        "rename" => {
+            rename_track(app, splitted_commands[1..].join(" "));
         }
         "s" | "save" => {
             save_file(app, splitted_commands[1..].join(" "));
@@ -1293,13 +1313,20 @@ fn start_app(working_file: &str) -> Result<()> {
                         app.normal_cursor.y = app.normal_cursor.y.saturating_sub(1);
                     }
                     app.count_lines();
+                    app.current_mode = Mode::Normal;
                 }
                 Mode::Visual => {
-                    if y_bound - 2 < app.normal_cursor.y {
-                        app.normal_cursor.y = app.normal_cursor.y.saturating_sub(1);
+                    let (min_x, max_x) = minmax_x(&app);
+                    let (min_y, max_y) = minmax_y(&app);
+                    for i in min_x..=max_x {
+                        app.cols[i as usize].drain((min_y as usize)..=(max_y as usize));
                     }
-                    app.cols[app.normal_cursor.x as usize].remove(app.normal_cursor.y as usize);
+                    let new_bound = app.cols[app.normal_cursor.x as usize].len() as u16 - 1;
+                    if new_bound < app.normal_cursor.y {
+                        app.normal_cursor.y = new_bound; 
+                    }
                     app.count_lines();
+                    app.current_mode = Mode::Normal;
                 }
                 Mode::Command => {
                     app.command_buf.push('d');
@@ -1313,15 +1340,18 @@ fn start_app(working_file: &str) -> Result<()> {
                     app.yank_buf = vec![vec![app.cols[app.normal_cursor.x as usize]
                         [app.normal_cursor.y as usize]
                         .clone()]];
+                    app.current_mode = Mode::Normal;
                 }
                 Mode::Visual => {
-                    //TODO: replace to minmax
-                    app.yank_buf = app.cols[(app.normal_cursor.x as usize)..=(app.visual_cursor.x as usize)].to_vec()
+                    let (min_x, max_x) = minmax_x(&app);
+                    let (min_y, max_y) = minmax_y(&app);
+                    app.yank_buf = app.cols[(min_x as usize)..=(max_x as usize)].to_vec()
                         .iter()
                         .map(|it|
-                        it[(app.normal_cursor.y as usize)..=(app.visual_cursor.y as usize)].to_vec()
+                        it[(min_y as usize)..=(max_y as usize)].to_vec()
                         )
                     .collect::<Vec<_>>();
+                    app.current_mode = Mode::Normal;
                 }
                 Mode::Command => {
                     app.command_buf.push('y');

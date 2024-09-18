@@ -54,8 +54,9 @@ TODO
     - [x] add init values
     - [x] make y work in visual mode
     - [x] make p work in visual mode
+    - [x] make d work in visual mode
+        - [ ] fix if len is shorter than other cols
     - [ ] faster insert mode edit
-    - [ ] make d work in visual mode
     - [ ] make + work in visual mode
     - [ ] make - work in visual mode
     - [ ] make = work in visual mode
