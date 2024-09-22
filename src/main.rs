@@ -301,7 +301,7 @@ else {
     };
     let err_out = std::str::from_utf8(&comp_status.stderr).unwrap_or("meh");
     app.command_buf = err_out.to_string();
-      
+
     let mut output: Vec<Vec<(f32, f32)>> = vec![Vec::new(); app.cols.len()];
     let mut unique_fn: Vec<String> = Vec::new();
     for col in &app.cols[1..] {
@@ -715,7 +715,24 @@ fn exec_command(app: &mut App) {
     app.current_mode = Mode::Normal;
 }
 
+fn init_panic_hook() {
+use std::panic::{set_hook, take_hook};
+    let original_hook = take_hook();
+    set_hook(Box::new(move |panic_info| {
+        // intentionally ignore errors here since we're already in a panic
+        let _ = restore_tui();
+        original_hook(panic_info);
+    }));
+}
+use std::io;
+fn restore_tui() -> io::Result<()> {
+    disable_raw_mode()?;
+    stdout().execute(LeaveAlternateScreen)?;
+    Ok(())
+}
+
 fn start_app(working_file: &str) -> Result<()> {
+    init_panic_hook();
     let mut config_raw_text = String::new();
     let config_path = home::home_dir()
         .unwrap()
@@ -800,9 +817,9 @@ fn start_app(working_file: &str) -> Result<()> {
             .join("cargolib/")
             .join("src/")
             .join("lib.rs");
-    let full_path_file =
-        std::path::Path::new(&std::env::current_dir().unwrap().to_str().unwrap_or("/"))
-            .join("project.tr");
+   // let full_path_file =
+   //     std::path::Path::new(&std::env::current_dir().unwrap().to_str().unwrap_or("/"))
+   //         .join("project.tr");
     app.y_bound = app.cols[app.normal_cursor.x as usize].len() as u16;
     app.count_lines();
     loop {
@@ -1012,6 +1029,7 @@ fn start_app(working_file: &str) -> Result<()> {
             Event::Key(KeyEvent {
                 code: KeyCode::Esc, ..
             }) => {
+                app.is_help = false;
                 app.current_mode = Mode::Normal;
                 let _ = &app.command_buf.clear();
                 let _ = &app.current_times.clear();
@@ -1409,13 +1427,25 @@ fn start_app(working_file: &str) -> Result<()> {
                 code: KeyCode::Char('-'),
                 ..
             }) => match app.current_mode {
-               Mode::Normal | Mode::Visual => {
+               Mode::Normal  => {
                     app.cols.remove(app.normal_cursor.x as usize);
                     app.normal_cursor.x = if app.cols.len() - 1 < app.normal_cursor.x as usize {
                         app.cols.len() as u16 - 1
                     } else {
                         app.normal_cursor.x
                     };
+                    app.count_lines();
+                }
+                Mode::Visual => {
+                    let (min_x, max_x) = minmax_x(&app);
+                    app.cols.drain((min_x as usize)..=(max_x as usize));
+                    app.normal_cursor.x = if app.cols.len() - 1 < app.normal_cursor.x as usize {
+                        app.cols.len() as u16 - 1
+                    } else {
+                        app.normal_cursor.x
+                    };
+                    app.current_mode = Mode::Normal;
+                    app.count_lines();
                 }
                 Mode::Insert => {
                     let temp_span = app.cols[app.normal_cursor.x as usize]
