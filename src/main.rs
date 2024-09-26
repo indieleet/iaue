@@ -434,48 +434,56 @@ else {
                                     slice_param = if note_repeat == 0 { 1.0 } else { note_repeat as f32 };
                                 },
                                 "12" => {
-                                    let bound = fx_args.first().unwrap_or(&"1".to_string()).parse::<usize>().unwrap_or(1);
-                                    let mut rand_iter = core::iter::repeat_with(|| fastrand::usize(1..bound));
+                                    let mut bound = fx_args.first().unwrap_or(&"1".to_string()).parse::<usize>().unwrap_or(1);
+                                    if bound == 0 { bound = 1 };
+                                    let mut rand_iter = core::iter::repeat_with(|| fastrand::usize(1..=bound));
                                     fs *= rand_iter.next().unwrap_or(1) as f32 / rand_iter.next().unwrap_or(1) as f32;
                                 },
                                 "13" => {
-                                    let bound = fx_args.first().unwrap_or(&"1".to_string()).parse::<usize>().unwrap_or(1);
-                                    let mut rand_iter = core::iter::repeat_with(|| fastrand::usize(1..bound));
+                                    let mut bound = fx_args.first().unwrap_or(&"1".to_string()).parse::<usize>().unwrap_or(1);
+                                    if bound == 0 { bound = 1 };
+                                    let mut rand_iter = core::iter::repeat_with(|| fastrand::usize(1..=bound));
                                     ls *= rand_iter.next().unwrap_or(1) as f32 / rand_iter.next().unwrap_or(1) as f32;
                                 },
                                 "14" => {
-                                    let bound = fx_args.first().unwrap_or(&"1".to_string()).parse::<usize>().unwrap_or(1);
-                                    let mut rand_iter = core::iter::repeat_with(|| fastrand::usize(1..bound));
+                                    let mut bound = fx_args.first().unwrap_or(&"1".to_string()).parse::<usize>().unwrap_or(1);
+                                    if bound == 0 { bound = 1 };
+                                    let mut rand_iter = core::iter::repeat_with(|| fastrand::usize(1..=bound));
                                     vs *= rand_iter.next().unwrap_or(1) as f32 / rand_iter.next().unwrap_or(1) as f32;
                                 },
                                 "15" => {
-                                    let bound = fx_args.first().unwrap_or(&"1".to_string()).parse::<usize>().unwrap_or(1);
-                                    let mut rand_iter = core::iter::repeat_with(|| fastrand::usize(1..bound));
+                                    let mut bound = fx_args.first().unwrap_or(&"1".to_string()).parse::<usize>().unwrap_or(1);
+                                    if bound == 0 { bound = 1 };
+                                    let mut rand_iter = core::iter::repeat_with(|| fastrand::usize(1..=bound));
                                     fs *= rand_iter.next().unwrap_or(1) as f32 / rand_iter.next().unwrap_or(1) as f32;
                                     ls *= rand_iter.next().unwrap_or(1) as f32 / rand_iter.next().unwrap_or(1) as f32;
                                     vs *= rand_iter.next().unwrap_or(1) as f32 / rand_iter.next().unwrap_or(1) as f32;
                                 },
                                 "16" => {
-                                    let bound = fx_args.first().unwrap_or(&"1".to_string()).parse::<usize>().unwrap_or(1);
-                                    let mut rand_iter = core::iter::repeat_with(|| fastrand::usize(1..bound));
+                                    let mut bound = fx_args.first().unwrap_or(&"1".to_string()).parse::<usize>().unwrap_or(1);
+                                    if bound == 0 { bound = 1 };
+                                    let mut rand_iter = core::iter::repeat_with(|| fastrand::usize(1..=bound));
                                     fs *= rand_iter.next().unwrap_or(1) as f32 / rand_iter.next().unwrap_or(1) as f32;
                                     new_f = fs;
                                 },
                                 "17" => {
-                                    let bound = fx_args.first().unwrap_or(&"1".to_string()).parse::<usize>().unwrap_or(1);
-                                    let mut rand_iter = core::iter::repeat_with(|| fastrand::usize(1..bound));
+                                    let mut bound = fx_args.first().unwrap_or(&"1".to_string()).parse::<usize>().unwrap_or(1);
+                                    if bound == 0 { bound = 1 };
+                                    let mut rand_iter = core::iter::repeat_with(|| fastrand::usize(1..=bound));
                                     ls *= rand_iter.next().unwrap_or(1) as f32 / rand_iter.next().unwrap_or(1) as f32;
                                     new_l = ls;
                                 },
                                 "18" => {
-                                    let bound = fx_args.first().unwrap_or(&"1".to_string()).parse::<usize>().unwrap_or(1);
-                                    let mut rand_iter = core::iter::repeat_with(|| fastrand::usize(1..bound));
+                                    let mut bound = fx_args.first().unwrap_or(&"1".to_string()).parse::<usize>().unwrap_or(1);
+                                    if bound == 0 { bound = 1 };
+                                    let mut rand_iter = core::iter::repeat_with(|| fastrand::usize(1..=bound));
                                     vs *= rand_iter.next().unwrap_or(1) as f32 / rand_iter.next().unwrap_or(1) as f32;
                                     new_v = vs;
                                 },
                                 "19" => {
-                                    let bound = fx_args.first().unwrap_or(&"1".to_string()).parse::<usize>().unwrap_or(1);
-                                    let mut rand_iter = core::iter::repeat_with(|| fastrand::usize(1..bound));
+                                    let mut bound = fx_args.first().unwrap_or(&"1".to_string()).parse::<usize>().unwrap_or(1);
+                                    if bound == 0 { bound = 1 };
+                                    let mut rand_iter = core::iter::repeat_with(|| fastrand::usize(1..=bound));
                                     fs *= rand_iter.next().unwrap_or(1) as f32 / rand_iter.next().unwrap_or(1) as f32;
                                     ls *= rand_iter.next().unwrap_or(1) as f32 / rand_iter.next().unwrap_or(1) as f32;
                                     vs *= rand_iter.next().unwrap_or(1) as f32 / rand_iter.next().unwrap_or(1) as f32;
@@ -1074,9 +1082,6 @@ fn start_app(working_file: &str) -> Result<()> {
                 let count: u16 = app.current_times.parse().unwrap_or(1);
                 let _ = &app.current_times.clear();
                 match app.current_mode {
-                    Mode::Normal | Mode::Visual | Mode::Insert if app.is_help => { 
-                        app.help_page = app.help_page.saturating_sub(count as usize);
-                    },
                     Mode::Normal | Mode::Visual => {
                         //let x_bound = app.rows[app.normal_cursor.y as usize].len() as u16;
                         let final_cursor = app.normal_cursor.x.saturating_sub(count);
@@ -1094,7 +1099,9 @@ fn start_app(working_file: &str) -> Result<()> {
                        // };
                         let new_cursor_normal = app.normal_cursor.x as isize
                             - (((new_cursor_insert - insert_bound + 1) / insert_bound).abs());
-                        if new_cursor_normal >= 0 {
+                        if app.normal_cursor.y >= app.cols[new_cursor_normal as usize].len() as u16 {
+                        }
+                        else if new_cursor_normal >= 0 {
                             app.insert_cursor.x = if new_cursor_insert >= 0 {
                                 new_cursor_insert as u16
                             } else {
@@ -1111,6 +1118,11 @@ fn start_app(working_file: &str) -> Result<()> {
                     }
                 }
                 //app.normal_cursor.x = app.normal_cursor.x.saturating_sub(count);
+                if app.is_help {
+                    if let Mode::Normal | Mode::Insert | Mode::Visual = app.current_mode {
+                        app.help_page = app.help_page.saturating_sub(count as usize);
+                    }
+                }
             }
             Event::Key(KeyEvent {
                 //modifiers: KeyModifiers::CONTROL,
@@ -1165,10 +1177,6 @@ fn start_app(working_file: &str) -> Result<()> {
                 let count: u16 = app.current_times.parse().unwrap_or(1);
                 let _ = &app.current_times.clear();
                 match app.current_mode {
-                    Mode::Normal | Mode::Visual | Mode::Insert if app.is_help => { 
-                        let new_page = app.help_page.saturating_add(count as usize);
-                        app.help_page = if new_page >= help::TEXT.len() { help::TEXT.len() - 1 } else { new_page }; 
-                    }
                     Mode::Normal | Mode::Visual => {
                         let x_bound = app.cols.len() as u16;
                         let new_x = app.normal_cursor.x.saturating_add(count);
@@ -1181,19 +1189,14 @@ fn start_app(working_file: &str) -> Result<()> {
                     }
                     Mode::Insert => {
                         let insert_bound = app.cols[app.normal_cursor.x as usize][app.normal_cursor.y as usize].len() as u16;
-                       // let insert_bound = if app.normal_cursor.y == 0 {
-                       //     1
-                       // } else if app.normal_cursor.y == 1 {
-                       //     3
-                       // } else {
-                       //     7
-                       // };
                         let new_cursor_insert = app.insert_cursor.x + count as u16;
                         let new_cursor_normal = app
                             .normal_cursor
                             .x
                             .saturating_add(new_cursor_insert / insert_bound);
-                        if new_cursor_normal < app.cols.len() as u16 {
+                        if new_cursor_normal < app.cols.len() as u16 && app.normal_cursor.y >= app.cols[new_cursor_normal as usize].len() as u16 {
+                        }
+                        else if new_cursor_normal < app.cols.len() as u16 {
                             app.insert_cursor.x = (new_cursor_insert) % insert_bound;
                             app.normal_cursor.x = new_cursor_normal;
                         } else {
@@ -1207,6 +1210,12 @@ fn start_app(working_file: &str) -> Result<()> {
                     }
                 }
                 //cursor.x = if new_x > app.x_bound - 1 { app.x_bound - 1 }
+                if app.is_help {
+                    if let Mode::Normal | Mode::Insert | Mode::Visual = app.current_mode {
+                        let new_page = app.help_page.saturating_add(count as usize);
+                        app.help_page = if new_page >= help::TEXT.len() { help::TEXT.len() - 1 } else { new_page }; 
+                    }
+                }
                 //    else { new_x };
             }
             Event::Key(KeyEvent {
