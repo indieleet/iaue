@@ -244,6 +244,7 @@ struct Cli {
     #[command(subcommand)]
     command: Option<Commands>,
 }
+
 #[derive(Subcommand)]
 enum Commands {
     ///Render file to wav format
@@ -381,18 +382,6 @@ else {
                             let note_fx = &note_param[0].content;
                             let fx_args = &note_param[1].content.split(',').map(|it| it.to_string()).collect::<Vec<_>>();
                             match note_fx.to_string().as_str() {
-                                // 0: Layer new Notes relative to previous
-                                // 1: Layer new note Additive
-                                // 2: use Constant Frequency for one line
-                                // 3: use Constant Duration for one line
-                                // 4: use Constant Velocity for one line
-                                // 5: Repeat Note
-                                // 6: Send Parameters
-                                // 7: Override current Frequency with constant value
-                                // 8: Override current Duration with constant value
-                                // 9: Override current Velocity with constant value
-                                // 10: Don't override current values
-                                // 11: Slice current note
                                 "0" => {
                                     (fc, lc, vc) = ( 
                                     fc * fx_args.first().unwrap_or(&"1".to_string()).split("/").map(|it| it.parse::<f32>().unwrap_or(1.0)).reduce(|x, y| x / y).unwrap_or(1.0), 
@@ -406,81 +395,49 @@ else {
                                     ls, 
                                     vs * fx_args.get(1).unwrap_or(&"1".to_string()).split("/").map(|it| it.parse::<f32>().unwrap_or(1.0)).reduce(|x, y| x / y).unwrap_or(1.0)))
                                 },
-                                "2" => { fs = 44100.0 / fx_args.first().unwrap_or(&fs.to_string()).parse::<f32>().unwrap_or(fs);},
+                                "2" => { note_repeat *= fx_args.first().unwrap_or(&"1".to_string()).parse::<usize>().unwrap_or(1); }
 
-                                "3" => { ls = fx_args.first().unwrap_or(&ls.to_string()).parse::<f32>().unwrap_or(ls);},
+                                "3" => { fx_params_slice.extend(fx_args.iter().map(|it| it.parse::<f32>().unwrap_or(0.0))); },
 
-                                "4" => { vs = fx_args.first().unwrap_or(&vs.to_string()).parse::<f32>().unwrap_or(vs);}
-
-                                "5" => { note_repeat *= fx_args.first().unwrap_or(&"1".to_string()).parse::<usize>().unwrap_or(1); }
-
-                                "6" => { fx_params_slice.extend(fx_args.iter().map(|it| it.parse::<f32>().unwrap_or(0.0))); },
-
-                                "7" => { new_f = 44100.0 / fx_args.first().unwrap_or(&fs.to_string()).parse::<f32>().unwrap_or(fs);
+                                "4" => { new_f = fx_args.first().unwrap_or(&fs.to_string()).parse::<f32>().unwrap_or(fs);
                                     fs = new_f;
                                 },
 
-                                "8" => { new_l = fx_args.first().unwrap_or(&ls.to_string()).parse::<f32>().unwrap_or(ls);
+                                "5" => { new_l = fx_args.first().unwrap_or(&ls.to_string()).parse::<f32>().unwrap_or(ls);
                                     ls = new_l;
                                 },
 
-                                "9" => { new_v = fx_args.first().unwrap_or(&vs.to_string()).parse::<f32>().unwrap_or(vs);
+                                "6" => { new_v = fx_args.first().unwrap_or(&vs.to_string()).parse::<f32>().unwrap_or(vs);
                                     vs = new_v;
                                 },
 
-                                "10" => { (new_f, new_l, new_v) = (old_f, old_l, old_v); },
-                                "11" => { 
+                                "7" => { (new_f, new_l, new_v) = (old_f, old_l, old_v); },
+                                "8" => { 
                                     note_repeat *= fx_args.first().unwrap_or(&"1".to_string()).parse::<usize>().unwrap_or(1); 
                                     slice_param = if note_repeat == 0 { 1.0 } else { note_repeat as f32 };
                                 },
-                                "12" => {
-                                    let mut bound = fx_args.first().unwrap_or(&"1".to_string()).parse::<usize>().unwrap_or(1);
-                                    if bound == 0 { bound = 1 };
-                                    let mut rand_iter = core::iter::repeat_with(|| fastrand::usize(1..=bound));
-                                    fs *= rand_iter.next().unwrap_or(1) as f32 / rand_iter.next().unwrap_or(1) as f32;
-                                },
-                                "13" => {
-                                    let mut bound = fx_args.first().unwrap_or(&"1".to_string()).parse::<usize>().unwrap_or(1);
-                                    if bound == 0 { bound = 1 };
-                                    let mut rand_iter = core::iter::repeat_with(|| fastrand::usize(1..=bound));
-                                    ls *= rand_iter.next().unwrap_or(1) as f32 / rand_iter.next().unwrap_or(1) as f32;
-                                },
-                                "14" => {
-                                    let mut bound = fx_args.first().unwrap_or(&"1".to_string()).parse::<usize>().unwrap_or(1);
-                                    if bound == 0 { bound = 1 };
-                                    let mut rand_iter = core::iter::repeat_with(|| fastrand::usize(1..=bound));
-                                    vs *= rand_iter.next().unwrap_or(1) as f32 / rand_iter.next().unwrap_or(1) as f32;
-                                },
-                                "15" => {
-                                    let mut bound = fx_args.first().unwrap_or(&"1".to_string()).parse::<usize>().unwrap_or(1);
-                                    if bound == 0 { bound = 1 };
-                                    let mut rand_iter = core::iter::repeat_with(|| fastrand::usize(1..=bound));
-                                    fs *= rand_iter.next().unwrap_or(1) as f32 / rand_iter.next().unwrap_or(1) as f32;
-                                    ls *= rand_iter.next().unwrap_or(1) as f32 / rand_iter.next().unwrap_or(1) as f32;
-                                    vs *= rand_iter.next().unwrap_or(1) as f32 / rand_iter.next().unwrap_or(1) as f32;
-                                },
-                                "16" => {
+                                "9" => {
                                     let mut bound = fx_args.first().unwrap_or(&"1".to_string()).parse::<usize>().unwrap_or(1);
                                     if bound == 0 { bound = 1 };
                                     let mut rand_iter = core::iter::repeat_with(|| fastrand::usize(1..=bound));
                                     fs *= rand_iter.next().unwrap_or(1) as f32 / rand_iter.next().unwrap_or(1) as f32;
                                     new_f = fs;
                                 },
-                                "17" => {
+                                "10" => {
                                     let mut bound = fx_args.first().unwrap_or(&"1".to_string()).parse::<usize>().unwrap_or(1);
                                     if bound == 0 { bound = 1 };
                                     let mut rand_iter = core::iter::repeat_with(|| fastrand::usize(1..=bound));
                                     ls *= rand_iter.next().unwrap_or(1) as f32 / rand_iter.next().unwrap_or(1) as f32;
                                     new_l = ls;
                                 },
-                                "18" => {
+                                "11" => {
                                     let mut bound = fx_args.first().unwrap_or(&"1".to_string()).parse::<usize>().unwrap_or(1);
                                     if bound == 0 { bound = 1 };
                                     let mut rand_iter = core::iter::repeat_with(|| fastrand::usize(1..=bound));
                                     vs *= rand_iter.next().unwrap_or(1) as f32 / rand_iter.next().unwrap_or(1) as f32;
                                     new_v = vs;
                                 },
-                                "19" => {
+                                "12" => {
                                     let mut bound = fx_args.first().unwrap_or(&"1".to_string()).parse::<usize>().unwrap_or(1);
                                     if bound == 0 { bound = 1 };
                                     let mut rand_iter = core::iter::repeat_with(|| fastrand::usize(1..=bound));
@@ -818,7 +775,7 @@ fn start_app(working_file: &str) -> Result<()> {
         should_leave: false,
     };
     let editor = std::env::var("EDITOR").unwrap_or("nvim".to_string());
-    let mut rand_iter = core::iter::repeat_with(|| fastrand::u8(0..9));
+    let mut rand_iter = core::iter::repeat_with(|| fastrand::u8(0..=9));
     let fn_status = String::new();
     let full_path_lib =
         std::path::Path::new(&std::env::current_dir().unwrap().to_str().unwrap_or("/"))
@@ -934,6 +891,7 @@ fn start_app(working_file: &str) -> Result<()> {
                 },
             );
             let lines_count = help::TEXT[app.help_page].lines().count() as u16 + 2;
+            let width = help::TEXT[app.help_page].lines().map(|it| it.len()).max().unwrap_or(0) as u16 + 2;
             if app.is_help {
                 f.render_widget(
                     Paragraph::new(help::TEXT[app.help_page]).block(
@@ -942,9 +900,9 @@ fn start_app(working_file: &str) -> Result<()> {
                             .title("Help"),
                     ),
                     layout::Rect {
-                        x: f.area().width / 2 - 20,
+                        x: f.area().width / 2 - width / 2,
                         y: f.area().height / 2 - lines_count / 2,
-                        width: 40,
+                        width,
                         height: lines_count,
                     },
                 );

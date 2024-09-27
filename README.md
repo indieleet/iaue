@@ -7,6 +7,8 @@ git clone https://github.com/indieleet/iaue
 cd iaue
 cargo run --release
 ```
+[Keymaps reference](./docs/keys.txt)
+[Note FX reference](./docs/note_fx.txt)
 
 TODO
 - [x] add support for cli
@@ -40,7 +42,7 @@ TODO
 - [x] add fxes on tracks
 - [x] add support for cargo dirs
 - [x] fix rows bounds
-    - [ ] fix it in insert mode
+    - [x] fix it in insert mode
 - [x] stereo
     - [ ] now add mono mode for better performance
 - [x] add sidechain
@@ -79,5 +81,7 @@ TODO
 - [ ] dawproject file export
 - [ ] remove some dependencies
     - [ ] change serde to nanoserde
+- [ ] add template for cargolib
+- [ ] fix working area (don't include name and line numbers)
 questionable:
 - [ ] change (frequency, len, velocity, params) to (phase, params)

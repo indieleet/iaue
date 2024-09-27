@@ -1,0 +1,13 @@
+0: Layer new Notes relative to previous
+1: Layer new note Additive
+2: Repeat Note
+3: Send Parameters
+4: use Constant Frequency
+5: use Constant Duration
+5: use Constant Velocity
+7: Don't override current values
+8: Slice current note
+9: use random Frequency
+10: use random Duration
+11: use random Velocity
+12: use random Frequency, Duration, Velocity
