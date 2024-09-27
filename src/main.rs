@@ -572,10 +572,10 @@ fn open_file(app: &mut App, mut file_name: String) {
                         .collect::<Vec<_>>()
                 })
                 .collect::<Vec<_>>();
-            app.normal_cursor.x = 0;
-            app.normal_cursor.y = 0;
-            app.visual_cursor.x = 0;
-            app.visual_cursor.y = 0;
+            app.normal_cursor.x = 1;
+            app.normal_cursor.y = 1;
+            app.visual_cursor.x = 1;
+            app.visual_cursor.y = 1;
             app.insert_cursor.x = 0;
             app.command_buf.clear();
         }
@@ -730,8 +730,8 @@ fn start_app(working_file: &str) -> Result<()> {
     let mut terminal = Terminal::new(CrosstermBackend::new(stdout()))?;
     terminal.clear()?;
     let mut app = App {
-        normal_cursor: NormalCursor::default(),
-        visual_cursor: VisualCursor::default(),
+        normal_cursor: NormalCursor{ x: 1, y: 1},
+        visual_cursor: VisualCursor{ x: 1, y: 1},
         insert_cursor: InsertCursor::default(),
         current_mode: Mode::Normal,
         audio_params: OutputDeviceParameters {
@@ -754,6 +754,8 @@ fn start_app(working_file: &str) -> Result<()> {
                     Span::from("440").to_owned(),
                     Span::from("1").to_owned(),
                     Span::from("1").to_owned(),
+                    Span::from("20,20000").to_owned(),
+                    Span::from("0.01, 10").to_owned(),
                 ],
                 vec![Span::from("1").to_owned(); 7],
                 vec![Span::from("1").to_owned(); 7],
@@ -764,6 +766,8 @@ fn start_app(working_file: &str) -> Result<()> {
                     Span::from("440").to_owned(),
                     Span::from("1").to_owned(),
                     Span::from("1").to_owned(),
+                    Span::from("20,20000").to_owned(),
+                    Span::from("0.01, 10").to_owned(),
                 ],
                 vec![Span::from("1").to_owned(); 7],
             ],
@@ -915,7 +919,8 @@ fn start_app(working_file: &str) -> Result<()> {
                 ..
             }) => match app.current_mode {
                 Mode::Visual | Mode::Normal | Mode::Insert => {
-                    app.should_leave = true;
+                    app.is_help = false;
+                    app.command_buf = "to quit type :q and hit enter".to_string();
                 }
                 Mode::Command => {
                     app.command_buf.push('q');
@@ -1043,7 +1048,7 @@ fn start_app(working_file: &str) -> Result<()> {
                     Mode::Normal | Mode::Visual => {
                         //let x_bound = app.rows[app.normal_cursor.y as usize].len() as u16;
                         let final_cursor = app.normal_cursor.x.saturating_sub(count);
-                        if (app.normal_cursor.y as usize) < app.cols[final_cursor as usize].len() { app.normal_cursor.x = final_cursor };
+                        if ((app.normal_cursor.y as usize) < app.cols[final_cursor as usize].len()) && (final_cursor > 0) { app.normal_cursor.x = final_cursor };
                     }
                     Mode::Insert => {
                         let new_cursor_insert = app.insert_cursor.x as isize - count as isize;
@@ -1059,7 +1064,7 @@ fn start_app(working_file: &str) -> Result<()> {
                             - (((new_cursor_insert - insert_bound + 1) / insert_bound).abs());
                         if app.normal_cursor.y >= app.cols[new_cursor_normal as usize].len() as u16 {
                         }
-                        else if new_cursor_normal >= 0 {
+                        else if new_cursor_normal > 0 {
                             app.insert_cursor.x = if new_cursor_insert >= 0 {
                                 new_cursor_insert as u16
                             } else {
@@ -1067,7 +1072,7 @@ fn start_app(working_file: &str) -> Result<()> {
                             };
                             app.normal_cursor.x = new_cursor_normal as u16;
                         } else {
-                            app.normal_cursor.x = 0;
+                            app.normal_cursor.x = 1;
                             app.insert_cursor.x = 0;
                         }
                     }
@@ -1118,7 +1123,8 @@ fn start_app(working_file: &str) -> Result<()> {
                 let _ = &app.current_times.clear();
                 match app.current_mode {
                     Mode::Normal | Mode::Visual | Mode::Insert => {
-                        app.normal_cursor.y = app.normal_cursor.y.saturating_sub(count);
+                        let new_cursor = app.normal_cursor.y.saturating_sub(count);
+                        if new_cursor > 0 { app.normal_cursor.y = new_cursor };
                         app.count_lines();
                     }
                     Mode::Command => {
@@ -1280,7 +1286,7 @@ fn start_app(working_file: &str) -> Result<()> {
                 Mode::Insert | Mode::Normal | Mode::Visual => {
                     app.cols.push(vec![
                         vec![Span::from("name")],
-                        vec![Span::from("440"), Span::from("1"), Span::from("1")],
+                        vec![Span::from("440"), Span::from("1"), Span::from("1"), Span::from("20,20000"), Span::from("0.01,10")],
                         vec![Span::from("1"); 7],
                     ]);
                 }
