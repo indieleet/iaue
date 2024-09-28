@@ -343,6 +343,7 @@ else {
             }
             for (i, col) in app.cols[1..].iter().enumerate() {
                 let (mut fs, mut ls, mut vs) = (440.0, 1.0, 1.0);
+                let (mut freq_bounds, mut len_bounds, mut vel_bounds): (Vec<f32>, Vec<f32>, Vec<f32>) = (vec![20.0, 20_000.0], vec![20.0, 20_000.0], vec![20.0, 20_000.0]);
                 let mut fxes = Vec::new();
                 let mut fx_params = Vec::new();
                 for (i_el, el) in col[1..].iter().enumerate() {
@@ -353,6 +354,12 @@ else {
                             .map(|it| str::parse::<f32>(&it.content).unwrap_or(0.0))
                             .collect();
                         (fs, ls, vs) = (elems[0], elems[1], elems[2]);
+                        let bounds: Vec<_> = el_iter
+                            .take(3)
+                            .map(|it| it.content.split(',').map(|it| str::parse::<f32>(it).unwrap_or(0.0)).collect::<Vec<_>>())
+                            .collect();
+                        //TODO: remove this clone
+                        (freq_bounds, len_bounds, vel_bounds) = (bounds[0].clone(), bounds[1].clone(), bounds[2].clone());
                         let fx_and_params = el_iter.map(|it| &it.content).collect::<Vec<_>>();
                         for fx in fx_and_params.chunks(2)
                         {
@@ -456,6 +463,13 @@ else {
                         (fs, ls, vs) = (new_f, new_l, new_v);
                         let mut temp_vec: Vec<Vec<(f32, f32)>> = Vec::new();
                         for (fs, ls, vs) in pushed_args {
+                            let mut freq = fs;
+                            while freq < freq_bounds[0] {
+                                freq /= 2.0;
+                            }
+                            while freq > freq_bounds[1] {
+                                freq *= 2.0;
+                            }
                             match pushed_fn {
                                 Ok(val) => {
                                     let out_tuple = val(fs, ls / slice_param, vs, 44100, fx_params_slice.as_slice());
