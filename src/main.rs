@@ -343,7 +343,6 @@ else {
             }
             for (i, col) in app.cols[1..].iter().enumerate() {
                 let (mut fs, mut ls, mut vs) = (440.0, 1.0, 1.0);
-                let (mut freq_bounds, mut len_bounds, mut vel_bounds): (Vec<f32>, Vec<f32>, Vec<f32>) = (vec![20.0, 20_000.0], vec![20.0, 20_000.0], vec![20.0, 20_000.0]);
                 let mut fxes = Vec::new();
                 let mut fx_params = Vec::new();
                 for (i_el, el) in col[1..].iter().enumerate() {
@@ -354,12 +353,6 @@ else {
                             .map(|it| str::parse::<f32>(&it.content).unwrap_or(0.0))
                             .collect();
                         (fs, ls, vs) = (elems[0], elems[1], elems[2]);
-                        let bounds: Vec<_> = el_iter
-                            .take(3)
-                            .map(|it| it.content.split(',').map(|it| str::parse::<f32>(it).unwrap_or(0.0)).collect::<Vec<_>>())
-                            .collect();
-                        //TODO: remove this clone
-                        (freq_bounds, len_bounds, vel_bounds) = (bounds[0].clone(), bounds[1].clone(), bounds[2].clone());
                         let fx_and_params = el_iter.map(|it| &it.content).collect::<Vec<_>>();
                         for fx in fx_and_params.chunks(2)
                         {
@@ -426,22 +419,55 @@ else {
                                 "9" => {
                                     let mut bound = fx_args.first().unwrap_or(&"1".to_string()).parse::<usize>().unwrap_or(1);
                                     if bound == 0 { bound = 1 };
+                                    let down_bound = fx_args.get(1).unwrap_or(&"20".to_string()).parse::<f32>().unwrap_or(20.0);
+                                    let up_bound = fx_args.get(2).unwrap_or(&"20000".to_string()).parse::<f32>().unwrap_or(20_000.0);
                                     let mut rand_iter = core::iter::repeat_with(|| fastrand::usize(1..=bound));
                                     fs *= rand_iter.next().unwrap_or(1) as f32 / rand_iter.next().unwrap_or(1) as f32;
+                                    let mut it = 0;
+                                    while (fs < down_bound) && (it < 8) {
+                                        fs *= 2.0;
+                                        it += 1;
+                                    }
+                                    while (fs > up_bound) && (it < 8) {
+                                        fs /= 2.0;
+                                        it += 1;
+                                    }
                                     new_f = fs;
                                 },
                                 "10" => {
                                     let mut bound = fx_args.first().unwrap_or(&"1".to_string()).parse::<usize>().unwrap_or(1);
                                     if bound == 0 { bound = 1 };
+                                    let down_bound = fx_args.get(1).unwrap_or(&"0.01".to_string()).parse::<f32>().unwrap_or(0.01);
+                                    let up_bound = fx_args.get(2).unwrap_or(&"10".to_string()).parse::<f32>().unwrap_or(10.0);
                                     let mut rand_iter = core::iter::repeat_with(|| fastrand::usize(1..=bound));
                                     ls *= rand_iter.next().unwrap_or(1) as f32 / rand_iter.next().unwrap_or(1) as f32;
+                                    let mut it = 0;
+                                    while (ls < down_bound) && (it < 8) {
+                                        ls *= 2.0;
+                                        it += 1;
+                                    }
+                                    while (ls > up_bound) && (it < 8) {
+                                        ls /= 2.0;
+                                        it += 1;
+                                    }
                                     new_l = ls;
                                 },
                                 "11" => {
                                     let mut bound = fx_args.first().unwrap_or(&"1".to_string()).parse::<usize>().unwrap_or(1);
                                     if bound == 0 { bound = 1 };
+                                    let down_bound = fx_args.get(1).unwrap_or(&"0.1".to_string()).parse::<f32>().unwrap_or(0.1);
+                                    let up_bound = fx_args.get(2).unwrap_or(&"1".to_string()).parse::<f32>().unwrap_or(1.0);
                                     let mut rand_iter = core::iter::repeat_with(|| fastrand::usize(1..=bound));
                                     vs *= rand_iter.next().unwrap_or(1) as f32 / rand_iter.next().unwrap_or(1) as f32;
+                                    let mut it = 0;
+                                    while (vs < down_bound) && (it < 8) {
+                                        vs *= 2.0;
+                                        it += 1;
+                                    }
+                                    while (vs > up_bound) && (it < 8){
+                                        vs /= 2.0;
+                                        it += 1;
+                                    }
                                     new_v = vs;
                                 },
                                 "12" => {
@@ -463,13 +489,6 @@ else {
                         (fs, ls, vs) = (new_f, new_l, new_v);
                         let mut temp_vec: Vec<Vec<(f32, f32)>> = Vec::new();
                         for (fs, ls, vs) in pushed_args {
-                            let mut freq = fs;
-                            while freq < freq_bounds[0] {
-                                freq /= 2.0;
-                            }
-                            while freq > freq_bounds[1] {
-                                freq *= 2.0;
-                            }
                             match pushed_fn {
                                 Ok(val) => {
                                     let out_tuple = val(fs, ls / slice_param, vs, 44100, fx_params_slice.as_slice());
@@ -768,8 +787,6 @@ fn start_app(working_file: &str) -> Result<()> {
                     Span::from("440").to_owned(),
                     Span::from("1").to_owned(),
                     Span::from("1").to_owned(),
-                    Span::from("20,20000").to_owned(),
-                    Span::from("0.01, 10").to_owned(),
                 ],
                 vec![Span::from("1").to_owned(); 7],
                 vec![Span::from("1").to_owned(); 7],
@@ -780,8 +797,6 @@ fn start_app(working_file: &str) -> Result<()> {
                     Span::from("440").to_owned(),
                     Span::from("1").to_owned(),
                     Span::from("1").to_owned(),
-                    Span::from("20,20000").to_owned(),
-                    Span::from("0.01, 10").to_owned(),
                 ],
                 vec![Span::from("1").to_owned(); 7],
             ],
@@ -1300,7 +1315,7 @@ fn start_app(working_file: &str) -> Result<()> {
                 Mode::Insert | Mode::Normal | Mode::Visual => {
                     app.cols.push(vec![
                         vec![Span::from("name")],
-                        vec![Span::from("440"), Span::from("1"), Span::from("1"), Span::from("20,20000"), Span::from("0.01,10")],
+                        vec![Span::from("440"), Span::from("1"), Span::from("1")],
                         vec![Span::from("1"); 7],
                     ]);
                 }
