@@ -5,12 +5,22 @@ edition = "2021"
 
 [dependencies]
 clap = { version = "4.5.16", features = ["derive"] }
-crossterm = { version = "0.28.1", features = ["libc"] }
 fastrand = "2.1.0"
 home = "0.5.9"
 libloading = "0.8.5"
-ratatui = { version = "0.28.0", features = ["all-widgets"] }
 serde = { version = "1.0.209", features = ["derive"] }
 serde_json = "1.0.127"
-tinyaudio = "0.1.4"
+
 wav_io = "0.1.14"
+
+# terminal dependencies
+crossterm = { version = "0.28.1", features = ["libc"], optional = true }
+ratatui = { version = "0.28.0", features = ["all-widgets"], optional = true }
+tinyaudio = { version = "0.1.4", optional = true }
+
+# sdl dependencies
+sdl2 = { version = "0.37.0", optional = true }
+
+[features]
+default = ["dep:crossterm", "dep:ratatui", "dep:tinyaudio"]
+sdl = ["dep:sdl2"]

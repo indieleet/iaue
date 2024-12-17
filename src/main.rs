@@ -1,14 +1,24 @@
 mod help;
 mod init_config;
 
-use clap::{Parser, Subcommand};
+#[cfg(not(feature = "sdl"))]
 use crossterm::{
     event::{self, Event, KeyCode, KeyEvent, KeyModifiers},
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
     ExecutableCommand,
 };
+
+#[cfg(not(feature = "sdl"))]
 use ratatui::layout::Direction;
+#[cfg(not(feature = "sdl"))]
 use ratatui::{backend::CrosstermBackend, prelude::*, style::Stylize, widgets::*, Terminal};
+
+#[cfg(not(feature = "sdl"))]
+use style::Styled;
+#[cfg(not(feature = "sdl"))]
+use tinyaudio::prelude::*;
+
+use clap::{Parser, Subcommand};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::io::{stdout, Result};
@@ -17,9 +27,6 @@ use std::{
     io::{Read, Write},
     process::{Command, Stdio},
 };
-use style::Styled;
-use tinyaudio::prelude::*;
-
 fn minmax_x(app: &App) -> (u16, u16) {
     if app.normal_cursor.x < app.visual_cursor.x { (app.normal_cursor.x, app.visual_cursor.x) }
     else { (app.visual_cursor.x, app.normal_cursor.x) }
@@ -33,6 +40,7 @@ fn minmax_y(app: &App) -> (u16, u16) {
 #[derive(Serialize, Deserialize)]
 struct JsonColor(String);
 
+#[cfg(not(feature = "sdl"))]
 impl From<JsonColor> for ratatui::style::Color {
     fn from(item: JsonColor) -> Self {
         ratatui::style::Color::from_u32(u32::from_str_radix(&item.0[1..], 16).unwrap())
