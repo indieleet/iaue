@@ -15,12 +15,12 @@ wav_io = "0.1.14"
 
 # terminal dependencies
 crossterm = { version = "0.28.1", features = ["libc"], optional = true }
-ratatui = { version = "0.28.0", features = ["all-widgets"], optional = true }
+ratatui = { version = "0.28.0" }
 tinyaudio = { version = "0.1.4", optional = true }
 
 # sdl dependencies
-sdl2 = { version = "0.37.0", optional = true }
+sdl2 = { version = "0.37.0", optional = true, features = ["ttf"] }
 
 [features]
-default = ["dep:crossterm", "dep:ratatui", "dep:tinyaudio"]
+default = ["dep:crossterm", "dep:tinyaudio", "dep:sdl2"]
 sdl = ["dep:sdl2"]

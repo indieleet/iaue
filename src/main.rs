@@ -9,11 +9,13 @@ use crossterm::{
 };
 
 #[cfg(not(feature = "sdl"))]
-use ratatui::layout::Direction;
-#[cfg(not(feature = "sdl"))]
-use ratatui::{backend::CrosstermBackend, prelude::*, style::Stylize, widgets::*, Terminal};
+use ratatui::backend::CrosstermBackend;
 
-#[cfg(not(feature = "sdl"))]
+use ratatui::{layout::Direction, prelude::*, style::Stylize, widgets::*, Terminal};
+
+//#[cfg(feature = "sdl")]
+use ratatui::backend::Backend;
+
 use style::Styled;
 #[cfg(not(feature = "sdl"))]
 use tinyaudio::prelude::*;
@@ -27,6 +29,79 @@ use std::{
     io::{Read, Write},
     process::{Command, Stdio},
 };
+
+pub struct SdlBackend {
+    canvas: sdl2::render::Canvas<sdl2::video::Window>,
+    x: u16,
+    y: u16,
+    buffer: Vec<Vec<buffer::Cell>>
+}
+
+impl SdlBackend {
+    fn new() -> SdlBackend {
+ let ttf_context = sdl2::ttf::init().map_err(|e| e.to_string()).unwrap();
+        let mut font = ttf_context.load_font("/home/den/.local/share/fonts/IosevkaTermSlabNerdFontPropo-Regular.ttf", 128).unwrap();
+        font.set_style(sdl2::ttf::FontStyle::BOLD);
+        let sdl_context = sdl2::init().unwrap();
+        let video_subsystem = sdl_context.video().unwrap();
+        let window = video_subsystem
+            .window("rust-sdl2 resource-manager demo", 800, 600)
+            .position_centered()
+            .build()
+            .map_err(|e| e.to_string()).unwrap();
+        let mut canvas = window
+            .into_canvas()
+            .software()
+            .build()
+            .map_err(|e| e.to_string()).unwrap();
+        SdlBackend { canvas, x:0, y:0, buffer: vec![vec![buffer::Cell::new("1")]] }
+    }
+}
+
+impl Backend for SdlBackend {
+    fn draw<'a, I>(&mut self, content: I) -> io::Result<()>
+        where
+            I: Iterator<Item = (u16, u16, &'a buffer::Cell)> {
+        Ok(())
+    }
+    fn size(&self) -> io::Result<Size> {
+        Ok(Size::new(0,0))
+    }
+    fn clear(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+    fn get_cursor(&mut self) -> io::Result<(u16, u16)> {
+        Ok((0,0))
+    }
+    fn set_cursor(&mut self, x: u16, y: u16) -> io::Result<()> {
+        Ok(())
+    }
+    fn hide_cursor(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+    fn show_cursor(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+    fn window_size(&mut self) -> io::Result<backend::WindowSize> {
+        Ok(backend::WindowSize { columns_rows: (0,0).into(), pixels: (0,0).into() })
+    }
+    fn append_lines(&mut self, _n: u16) -> io::Result<()> {
+        Ok(())
+    }
+    fn clear_region(&mut self, clear_type: backend::ClearType) -> io::Result<()> {
+        Ok(())
+    }
+    fn get_cursor_position(&mut self) -> io::Result<Position> {
+        Ok(Position::new(0, 0))
+    }
+    fn set_cursor_position<P: Into<Position>>(&mut self, position: P) -> io::Result<()> {
+        Ok(())
+    }
+}
+
 fn minmax_x(app: &App) -> (u16, u16) {
     if app.normal_cursor.x < app.visual_cursor.x { (app.normal_cursor.x, app.visual_cursor.x) }
     else { (app.visual_cursor.x, app.normal_cursor.x) }
@@ -40,7 +115,6 @@ fn minmax_y(app: &App) -> (u16, u16) {
 #[derive(Serialize, Deserialize)]
 struct JsonColor(String);
 
-#[cfg(not(feature = "sdl"))]
 impl From<JsonColor> for ratatui::style::Color {
     fn from(item: JsonColor) -> Self {
         ratatui::style::Color::from_u32(u32::from_str_radix(&item.0[1..], 16).unwrap())
@@ -766,9 +840,14 @@ fn start_app(working_file: &str) -> Result<()> {
             .into_iter()
             .map(|(key, val)| (key, val.into()))
             .collect();
+    #[cfg(not(feature = "sdl"))]
     stdout().execute(EnterAlternateScreen)?;
+    #[cfg(not(feature = "sdl"))]
     enable_raw_mode()?;
+    #[cfg(not(feature = "sdl"))]
     let mut terminal = Terminal::new(CrosstermBackend::new(stdout()))?;
+    #[cfg(feature = "sdl")]
+    let mut terminal = Terminal::new(SdlBackend::new());
     terminal.clear()?;
     let mut app = App {
         normal_cursor: NormalCursor{ x: 1, y: 1},
