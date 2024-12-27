@@ -17,7 +17,7 @@ use ratatui::backend::CrosstermBackend;
 
 use ratatui::{layout::Direction, prelude::*, style::Stylize, widgets::*, Terminal};
 
-//#[cfg(feature = "sdl")]
+#[cfg(feature = "sdl")]
 use ratatui::backend::Backend;
 
 use style::Styled;
@@ -38,6 +38,7 @@ pub struct SdlBackend {
     canvas: sdl2::render::Canvas<sdl2::video::Window>,
     x: u16,
     y: u16,
+    ctx: sdl2::Sdl
 }
 
 impl SdlBackend {
@@ -45,7 +46,7 @@ impl SdlBackend {
         let sdl_context = sdl2::init().unwrap();
         let video_subsystem = sdl_context.video().unwrap();
         let window = video_subsystem
-            .window("iaue", 800, 600)
+            .window("iaue", 640, 480)
             .position_centered()
             .build()
             .map_err(|e| e.to_string()).unwrap();
@@ -54,7 +55,7 @@ impl SdlBackend {
             .software()
             .build()
             .map_err(|e| e.to_string()).unwrap();
-        SdlBackend { canvas, x:0, y:0 }
+        SdlBackend { canvas, x: 0, y: 0, ctx: sdl_context }
     }
 }
 
@@ -836,7 +837,7 @@ fn restore_tui() -> io::Result<()> {
 
 
 #[cfg(not(feature = "sdl"))]
-pub fn crossterm_event(app: &mut App) -> Result<()> {
+pub fn crossterm_event(app: &mut App, terminal: &mut Terminal<CrosstermBackend<std::io::Stdout>>) -> Result<()> {
     let match_event = event::read()?;
     let y_bound: u16 = app.cols[app.normal_cursor.x as usize].len() as u16;
 
@@ -1345,7 +1346,7 @@ pub fn crossterm_event(app: &mut App) -> Result<()> {
                     app.count_lines();
                 }
                 Mode::Visual => {
-                    let (min_x, max_x) = minmax_x(&app);
+                    let (min_x, max_x) = minmax_x(app);
                     app.cols.drain((min_x as usize)..=(max_x as usize));
                     app.normal_cursor.x = if app.cols.len() - 1 < app.normal_cursor.x as usize {
                         app.cols.len() as u16 - 1
@@ -1438,7 +1439,7 @@ pub fn crossterm_event(app: &mut App) -> Result<()> {
                 Command::new(&editor).arg(&full_path_lib).status()?;
                 stdout().execute(EnterAlternateScreen)?;
                 enable_raw_mode()?;
-                //let _ = terminal.clear();
+                let _ = terminal.clear();
             }
             Event::Key(KeyEvent {
                 modifiers: KeyModifiers::CONTROL,
@@ -1511,25 +1512,45 @@ pub fn crossterm_event(app: &mut App) -> Result<()> {
                 code: KeyCode::Char('r'),
                 ..
             }) => {
-                let out_vec = render(app);
-                let max_len = out_vec.len();
-                let mut out_vec_iter = out_vec.into_iter();
-            let audio_params = app.audio_params;
-                        std::thread::spawn(move || {
-                            let _aud = run_output_device(audio_params, move |data| {
-                                for samples in data {
-                                    *samples = out_vec_iter.next().unwrap_or(0.0);
-                                }
-                            })
-                            .unwrap();
-                            std::thread::sleep(std::time::Duration::from_secs(
-                                max_len as u64 / 44100,
-                            ));
-                        });
+ //               let out_vec = render(app);
+ //               let max_len = out_vec.len();
+ //               let mut out_vec_iter = out_vec.into_iter();
+ //           let audio_params = app.audio_params;
+ //                       std::thread::spawn(move || {
+ //                           let _aud = run_output_device(audio_params, move |data| {
+ //                               for samples in data {
+ //                                   *samples = out_vec_iter.next().unwrap_or(0.0);
+ //                               }
+ //                           })
+ //                           .unwrap();
+ //                           std::thread::sleep(std::time::Duration::from_secs(
+ //                               max_len as u64 / 44100,
+ //                           ));
+ //                       });
                     }
             _ => (),
         }
     Ok(())
+}
+
+//#[cfg(feature = "sdl")]
+fn sdl_event(app: &mut App, terminal: &mut Terminal<SdlBackend>) {
+    let sdl_context = &terminal.backend_mut().ctx;
+    for event in sdl_context.event_pump().unwrap().wait_iter() {
+        use sdl2::event::Event;
+        match event {
+            Event::ControllerButtonDown { button: sdl2::controller::Button::A, .. } |
+            Event::Quit { .. } |
+            Event::KeyDown {
+                    keycode: Some(sdl2::keyboard::Keycode::Escape),
+                    ..
+            } => {
+                app.should_leave = true;
+                break
+            },
+            _ => {}
+        }
+    }
 }
 
 //fn sdl_event(app: &mut App) -> Result<()> {
@@ -1760,7 +1781,9 @@ fn start_app(working_file: &str) -> Result<()> {
         })?;
 
         #[cfg(not(feature = "sdl"))]
-        let _ = crossterm_event(&mut app);
+        let _ = crossterm_event(&mut app, &mut terminal);
+        #[cfg(feature = "sdl")]
+        let _ = sdl_event(&mut app, &mut terminal);
         if app.should_leave {
             break;
         };
