@@ -36,26 +36,63 @@ use std::{
 
 pub struct SdlBackend {
     canvas: sdl2::render::Canvas<sdl2::video::Window>,
-    x: u16,
-    y: u16,
-    ctx: sdl2::Sdl
+    ctx: sdl2::Sdl,
+    ttf_context: sdl2::ttf::Sdl2TtfContext
 }
 
 impl SdlBackend {
     fn new() -> SdlBackend {
         let sdl_context = sdl2::init().unwrap();
+        sdl2::hint::set("SDL_JOYSTICK_THREAD", "1");
+        sdl2::hint::set("SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS", "1");
+        sdl2::hint::set("SDL_HINT_JOYSTICK_RAWINPUT", "1");
+                let game_controller_subsystem = sdl_context.game_controller().unwrap();
+
+        let available = game_controller_subsystem
+            .num_joysticks()
+            .map_err(|e| format!("can't enumerate joysticks: {}", e)).unwrap();
+
+        println!("{} joysticks available", available);
+
+        // Iterate over all available joysticks and look for game controllers.
+        let controller = (0..available)
+            .find_map(|id| {
+                if !game_controller_subsystem.is_game_controller(id) {
+                    println!("{} is not a game controller", id);
+                    return None;
+                }
+
+                println!("Attempting to open controller {}", id);
+
+                match game_controller_subsystem.open(id) {
+                    Ok(c) => {
+                        // We managed to find and open a game controller,
+                        // exit the loop
+                        println!("Success: opened \"{}\"", c.name());
+                        Some(c)
+                    }
+                    Err(e) => {
+                        println!("failed: {:?}", e);
+                        None
+                    }
+                }
+            })
+            .expect("Couldn't open any controller");
+
+        println!("Controller mapping: {}", controller.mapping());
         let video_subsystem = sdl_context.video().unwrap();
         let window = video_subsystem
             .window("iaue", 640, 480)
             .position_centered()
             .build()
             .map_err(|e| e.to_string()).unwrap();
-        let mut canvas = window
+        let canvas = window
             .into_canvas()
             .software()
             .build()
             .map_err(|e| e.to_string()).unwrap();
-        SdlBackend { canvas, x: 0, y: 0, ctx: sdl_context }
+        let ttf_context = sdl2::ttf::init().map_err(|e| e.to_string()).unwrap();
+        SdlBackend { canvas, ctx: sdl_context, ttf_context }
     }
 }
 
@@ -63,12 +100,12 @@ impl Backend for SdlBackend {
     fn draw<'a, I>(&mut self, content: I) -> io::Result<()>
 where
         I: Iterator<Item = (u16, u16, &'a buffer::Cell)> {
-        let ttf_context = sdl2::ttf::init().map_err(|e| e.to_string()).unwrap();
+        let ttf_context = &self.ttf_context;
         let mut font = ttf_context.load_font("IosevkaTermSlabNerdFontPropo-Regular.ttf", 128).unwrap();
         font.set_style(sdl2::ttf::FontStyle::NORMAL);
         let texture_creator = self.canvas.texture_creator();
         for (x, y, el) in content {
-            let target = sdl2::rect::Rect::new(x as i32 *16, y as i32 *24, 16, 24);
+            let target = sdl2::rect::Rect::new(x as i32 *8, y as i32 *12, 8, 12);
             let surface = font
                 .render(el.symbol())
                 .blended(sdl2::pixels::Color::RGBA(255, 0, 0, 255))
@@ -85,7 +122,7 @@ where
         Ok(())
     }
     fn size(&self) -> io::Result<Size> {
-        Ok(Size::new(50,25))
+        Ok(Size::new(80,40))
     }
     fn clear(&mut self) -> io::Result<()> {
         self.canvas.clear();
@@ -1512,31 +1549,31 @@ pub fn crossterm_event(app: &mut App, terminal: &mut Terminal<CrosstermBackend<s
                 code: KeyCode::Char('r'),
                 ..
             }) => {
- //               let out_vec = render(app);
- //               let max_len = out_vec.len();
- //               let mut out_vec_iter = out_vec.into_iter();
- //           let audio_params = app.audio_params;
- //                       std::thread::spawn(move || {
- //                           let _aud = run_output_device(audio_params, move |data| {
- //                               for samples in data {
- //                                   *samples = out_vec_iter.next().unwrap_or(0.0);
- //                               }
- //                           })
- //                           .unwrap();
- //                           std::thread::sleep(std::time::Duration::from_secs(
- //                               max_len as u64 / 44100,
- //                           ));
- //                       });
+               let out_vec = render(app);
+               let max_len = out_vec.len();
+               let mut out_vec_iter = out_vec.into_iter();
+           let audio_params = app.audio_params;
+                       std::thread::spawn(move || {
+                           let _aud = run_output_device(audio_params, move |data| {
+                               for samples in data {
+                                   *samples = out_vec_iter.next().unwrap_or(0.0);
+                               }
+                           })
+                           .unwrap();
+                           std::thread::sleep(std::time::Duration::from_secs(
+                               max_len as u64 / 44100,
+                           ));
+                       });
                     }
             _ => (),
         }
     Ok(())
 }
 
-//#[cfg(feature = "sdl")]
+#[cfg(feature = "sdl")]
 fn sdl_event(app: &mut App, terminal: &mut Terminal<SdlBackend>) {
     let sdl_context = &terminal.backend_mut().ctx;
-    for event in sdl_context.event_pump().unwrap().wait_iter() {
+    for event in sdl_context.event_pump().unwrap().poll_iter() {
         use sdl2::event::Event;
         match event {
             Event::ControllerButtonDown { button: sdl2::controller::Button::A, .. } |
@@ -1548,7 +1585,7 @@ fn sdl_event(app: &mut App, terminal: &mut Terminal<SdlBackend>) {
                 app.should_leave = true;
                 break
             },
-            _ => {}
+            e => { println!("{:?}", e); }
         }
     }
 }
@@ -1568,6 +1605,7 @@ fn sdl_event(app: &mut App, terminal: &mut Terminal<SdlBackend>) {
 //}
 
 fn start_app(working_file: &str) -> Result<()> {
+    print!("hey");
     #[cfg(not(feature = "sdl"))]
     init_panic_hook();
     let mut config_raw_text = String::new();
@@ -1783,10 +1821,14 @@ fn start_app(working_file: &str) -> Result<()> {
         #[cfg(not(feature = "sdl"))]
         let _ = crossterm_event(&mut app, &mut terminal);
         #[cfg(feature = "sdl")]
-        let _ = sdl_event(&mut app, &mut terminal);
+        sdl_event(&mut app, &mut terminal);
+
         if app.should_leave {
             break;
         };
+
+        #[cfg(feature = "sdl")]
+        ::std::thread::sleep(core::time::Duration::new(0, 1_000_000_000u32 / 30));
     }
 
 
@@ -1814,6 +1856,6 @@ fn main() {
             let _ = std::env::set_current_dir(path.parent().unwrap_or(Path::new("/")));
         };
     }
-
+    print!("hey");
     let _ = start_app(working_file);
 }
