@@ -34,52 +34,54 @@ use std::{
     process::{Command, Stdio},
 };
 
+#[cfg(feature = "sdl")]
 pub struct SdlBackend {
     canvas: sdl2::render::Canvas<sdl2::video::Window>,
     ctx: sdl2::Sdl,
     ttf_context: sdl2::ttf::Sdl2TtfContext
 }
 
+#[cfg(feature = "sdl")]
 impl SdlBackend {
     fn new() -> SdlBackend {
         let sdl_context = sdl2::init().unwrap();
-        sdl2::hint::set("SDL_JOYSTICK_THREAD", "1");
-        sdl2::hint::set("SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS", "1");
-        sdl2::hint::set("SDL_HINT_JOYSTICK_RAWINPUT", "1");
-                let game_controller_subsystem = sdl_context.game_controller().unwrap();
+        //sdl2::hint::set("SDL_JOYSTICK_THREAD", "1");
+        //sdl2::hint::set("SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS", "1");
+        //sdl2::hint::set("SDL_HINT_JOYSTICK_RAWINPUT", "1");
+        //        let game_controller_subsystem = sdl_context.game_controller().unwrap();
 
-        let available = game_controller_subsystem
-            .num_joysticks()
-            .map_err(|e| format!("can't enumerate joysticks: {}", e)).unwrap();
+        //let available = game_controller_subsystem
+        //    .num_joysticks()
+        //    .map_err(|e| format!("can't enumerate joysticks: {}", e)).unwrap();
 
-        println!("{} joysticks available", available);
+        //println!("{} joysticks available", available);
 
-        // Iterate over all available joysticks and look for game controllers.
-        let controller = (0..available)
-            .find_map(|id| {
-                if !game_controller_subsystem.is_game_controller(id) {
-                    println!("{} is not a game controller", id);
-                    return None;
-                }
+        //// Iterate over all available joysticks and look for game controllers.
+        //let controller = (0..available)
+        //    .find_map(|id| {
+        //        if !game_controller_subsystem.is_game_controller(id) {
+        //            println!("{} is not a game controller", id);
+        //            return None;
+        //        }
 
-                println!("Attempting to open controller {}", id);
+        //        println!("Attempting to open controller {}", id);
 
-                match game_controller_subsystem.open(id) {
-                    Ok(c) => {
-                        // We managed to find and open a game controller,
-                        // exit the loop
-                        println!("Success: opened \"{}\"", c.name());
-                        Some(c)
-                    }
-                    Err(e) => {
-                        println!("failed: {:?}", e);
-                        None
-                    }
-                }
-            })
-            .expect("Couldn't open any controller");
+        //        match game_controller_subsystem.open(id) {
+        //            Ok(c) => {
+        //                // We managed to find and open a game controller,
+        //                // exit the loop
+        //                println!("Success: opened \"{}\"", c.name());
+        //                Some(c)
+        //            }
+        //            Err(e) => {
+        //                println!("failed: {:?}", e);
+        //                None
+        //            }
+        //        }
+        //    })
+        //    .expect("Couldn't open any controller");
 
-        println!("Controller mapping: {}", controller.mapping());
+        //println!("Controller mapping: {}", controller.mapping());
         let video_subsystem = sdl_context.video().unwrap();
         let window = video_subsystem
             .window("iaue", 640, 480)
@@ -96,6 +98,7 @@ impl SdlBackend {
     }
 }
 
+#[cfg(feature = "sdl")]
 impl Backend for SdlBackend {
     fn draw<'a, I>(&mut self, content: I) -> io::Result<()>
 where
@@ -106,15 +109,26 @@ where
         let texture_creator = self.canvas.texture_creator();
         for (x, y, el) in content {
             let target = sdl2::rect::Rect::new(x as i32 *8, y as i32 *12, 8, 12);
+            let color_fg = match el.fg {
+                Color::Rgb(red, green, blue) => (red, green, blue),
+                _ => (255, 255, 255)
+            };
+            let color_bg = match el.bg {
+                Color::Rgb(red, green, blue) => (red, green, blue),
+                _ => (0, 0, 0)
+            };
+
+            let bg_rect = sdl2::rect::Rect::new(x as i32 *8, y as i32 *12, 8, 12);
+            self.canvas.set_draw_color(sdl2::pixels::Color::RGBA(color_bg.0, color_bg.1, color_bg.2, 255));
+            self.canvas.fill_rect(bg_rect);
             let surface = font
                 .render(el.symbol())
-                .blended(sdl2::pixels::Color::RGBA(255, 0, 0, 255))
+                .blended(sdl2::pixels::Color::RGBA(color_fg.0, color_fg.1, color_fg.2, 255))
                 .map_err(|e| e.to_string()).unwrap();
             let texture = texture_creator
                 .create_texture_from_surface(&surface)
                 .map_err(|e| e.to_string()).unwrap();
 
-            //self.canvas.set_draw_color(sdl2::pixels::Color::RGBA(195, 217, 255, 255));
             //let sdl2::render::TextureQuery { width, height, .. } = texture.query();
             self.canvas.copy(&texture, None, Some(target)).unwrap();
         }
@@ -1585,7 +1599,8 @@ fn sdl_event(app: &mut App, terminal: &mut Terminal<SdlBackend>) {
                 app.should_leave = true;
                 break
             },
-            e => { println!("{:?}", e); }
+            //e => { println!("{:?}", e); }
+            _ => {}
         }
     }
 }
@@ -1605,7 +1620,6 @@ fn sdl_event(app: &mut App, terminal: &mut Terminal<SdlBackend>) {
 //}
 
 fn start_app(working_file: &str) -> Result<()> {
-    print!("hey");
     #[cfg(not(feature = "sdl"))]
     init_panic_hook();
     let mut config_raw_text = String::new();
@@ -1856,6 +1870,5 @@ fn main() {
             let _ = std::env::set_current_dir(path.parent().unwrap_or(Path::new("/")));
         };
     }
-    print!("hey");
     let _ = start_app(working_file);
 }
