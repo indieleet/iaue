@@ -120,7 +120,7 @@ where
 
             let bg_rect = sdl2::rect::Rect::new(x as i32 *8, y as i32 *12, 8, 12);
             self.canvas.set_draw_color(sdl2::pixels::Color::RGBA(color_bg.0, color_bg.1, color_bg.2, 255));
-            self.canvas.fill_rect(bg_rect);
+            let _ = self.canvas.fill_rect(bg_rect);
             let surface = font
                 .render(el.symbol())
                 .blended(sdl2::pixels::Color::RGBA(color_fg.0, color_fg.1, color_fg.2, 255))
@@ -886,7 +886,108 @@ fn restore_tui() -> io::Result<()> {
     Ok(())
 }
 
+fn false_quit(app: &mut App) { 
+    match app.current_mode {
+        Mode::Visual | Mode::Normal | Mode::Insert => {
+            app.is_help = false;
+            app.command_buf = "to quit type :q and hit enter".to_string();
+        }
+        Mode::Command => {
+            app.command_buf.push('q');
+        }
+    }
+}
 
+fn num_to_buf(app: &mut App, matched_code: char) { 
+    match app.current_mode {
+        Mode::Normal | Mode::Visual => {
+            app.current_times.push(matched_code);
+        }
+        Mode::Insert => {
+            let temp_span = app.cols[app.normal_cursor.x as usize]
+                [app.normal_cursor.y as usize][app.insert_cursor.x as usize]
+                .clone();
+            app.cols[app.normal_cursor.x as usize][app.normal_cursor.y as usize]
+                [app.insert_cursor.x as usize]
+                .content =
+                (temp_span.content.to_string() + &matched_code.to_string()).into();
+        }
+        Mode::Command => {
+            app.command_buf.push(matched_code);
+        }
+    }
+}
+
+fn dot(app: &mut App) {
+    match app.current_mode {
+        Mode::Normal | Mode::Visual => {}
+        Mode::Insert => {
+            let temp_span = app.cols[app.normal_cursor.x as usize]
+                [app.normal_cursor.y as usize][app.insert_cursor.x as usize]
+                .clone();
+            app.cols[app.normal_cursor.x as usize][app.normal_cursor.y as usize]
+                [app.insert_cursor.x as usize]
+                .content = (temp_span.content.to_string() + ".").into();
+        }
+        Mode::Command => {
+            app.command_buf.push('.');
+        }
+    }
+}
+
+fn comma(app: &mut App) {
+    match app.current_mode {
+        Mode::Normal | Mode::Visual => {}
+        Mode::Insert => {
+            let temp_span = app.cols[app.normal_cursor.x as usize]
+                [app.normal_cursor.y as usize][app.insert_cursor.x as usize]
+                .clone();
+            app.cols[app.normal_cursor.x as usize][app.normal_cursor.y as usize]
+                [app.insert_cursor.x as usize]
+                .content = (temp_span.content.to_string() + ",").into();
+        }
+        Mode::Command => {
+            app.command_buf.push(',');
+        }
+    }
+}
+
+fn slash(app: &mut App) {
+    match app.current_mode {
+        Mode::Normal | Mode::Visual => {}
+        Mode::Insert => {
+            let temp_span = app.cols[app.normal_cursor.x as usize]
+                [app.normal_cursor.y as usize][app.insert_cursor.x as usize]
+                .clone();
+            app.cols[app.normal_cursor.x as usize][app.normal_cursor.y as usize]
+                [app.insert_cursor.x as usize]
+                .content = (temp_span.content.to_string() + "/").into();
+        }
+        Mode::Command => {
+            app.command_buf.push('/');
+        }
+    }
+}
+
+fn escape(app: &mut App) {
+    app.is_help = false;
+    app.current_mode = Mode::Normal;
+    let _ = &app.command_buf.clear();
+    let _ = &app.current_times.clear();
+}
+
+fn enter_insert_mode(app: &mut App) {
+    match app.current_mode {
+        Mode::Normal | Mode::Visual => {
+            app.current_mode = Mode::Insert;
+            let _ = &app.current_times.clear();
+        }
+        Mode::Command => {
+            app.command_buf.push('i');
+        }
+        Mode::Insert => {}
+    }
+}
 #[cfg(not(feature = "sdl"))]
 pub fn crossterm_event(app: &mut App, terminal: &mut Terminal<CrosstermBackend<std::io::Stdout>>) -> Result<()> {
     let match_event = event::read()?;
@@ -904,108 +1005,30 @@ pub fn crossterm_event(app: &mut App, terminal: &mut Terminal<CrosstermBackend<s
             Event::Key(KeyEvent {
                 code: KeyCode::Char('q'),
                 ..
-            }) => match app.current_mode {
-                Mode::Visual | Mode::Normal | Mode::Insert => {
-                    app.is_help = false;
-                    app.command_buf = "to quit type :q and hit enter".to_string();
-                }
-                Mode::Command => {
-                    app.command_buf.push('q');
-                }
-            },
+            }) => false_quit(app),
             Event::Key(KeyEvent {
                 code: KeyCode::Char(matched_code @ '0'..='9'),
                 ..
-            }) => match app.current_mode {
-                Mode::Normal | Mode::Visual => {
-                    app.current_times.push(matched_code);
-                }
-                Mode::Insert => {
-                    let temp_span = app.cols[app.normal_cursor.x as usize]
-                        [app.normal_cursor.y as usize][app.insert_cursor.x as usize]
-                        .clone();
-                    app.cols[app.normal_cursor.x as usize][app.normal_cursor.y as usize]
-                        [app.insert_cursor.x as usize]
-                        .content =
-                        (temp_span.content.to_string() + &matched_code.to_string()).into();
-                }
-                Mode::Command => {
-                    app.command_buf.push(matched_code);
-                }
-            },
+            }) => num_to_buf(app, matched_code),
             Event::Key(KeyEvent {
                 code: KeyCode::Char('.'),
                 ..
-            }) => match app.current_mode {
-                Mode::Normal | Mode::Visual => {}
-                Mode::Insert => {
-                    let temp_span = app.cols[app.normal_cursor.x as usize]
-                        [app.normal_cursor.y as usize][app.insert_cursor.x as usize]
-                        .clone();
-                    app.cols[app.normal_cursor.x as usize][app.normal_cursor.y as usize]
-                        [app.insert_cursor.x as usize]
-                        .content = (temp_span.content.to_string() + ".").into();
-                }
-                Mode::Command => {
-                    app.command_buf.push('.');
-                }
-            },
+            }) => dot(app),
             Event::Key(KeyEvent {
                 code: KeyCode::Char(','),
                 ..
-            }) => match app.current_mode {
-                Mode::Normal | Mode::Visual => {}
-                Mode::Insert => {
-                    let temp_span = app.cols[app.normal_cursor.x as usize]
-                        [app.normal_cursor.y as usize][app.insert_cursor.x as usize]
-                        .clone();
-                    app.cols[app.normal_cursor.x as usize][app.normal_cursor.y as usize]
-                        [app.insert_cursor.x as usize]
-                        .content = (temp_span.content.to_string() + ",").into();
-                }
-                Mode::Command => {
-                    app.command_buf.push(',');
-                }
-            },
+            }) => comma(app),
             Event::Key(KeyEvent {
                 code: KeyCode::Char('/'),
                 ..
-            }) => match app.current_mode {
-                Mode::Normal | Mode::Visual => {}
-                Mode::Insert => {
-                    let temp_span = app.cols[app.normal_cursor.x as usize]
-                        [app.normal_cursor.y as usize][app.insert_cursor.x as usize]
-                        .clone();
-                    app.cols[app.normal_cursor.x as usize][app.normal_cursor.y as usize]
-                        [app.insert_cursor.x as usize]
-                        .content = (temp_span.content.to_string() + "/").into();
-                }
-                Mode::Command => {
-                    app.command_buf.push('/');
-                }
-            },
+            }) => slash(app),
             Event::Key(KeyEvent {
                 code: KeyCode::Esc, ..
-            }) => {
-                app.is_help = false;
-                app.current_mode = Mode::Normal;
-                let _ = &app.command_buf.clear();
-                let _ = &app.current_times.clear();
-            }
-
+            }) => escape(app),
             Event::Key(KeyEvent {
                 code: KeyCode::Char('i'),
                 ..
-            }) => match app.current_mode {
-                Mode::Normal | Mode::Visual => {
-                    app.current_mode = Mode::Insert;
-                    let _ = &app.current_times.clear();
-                }
-                Mode::Command => {
-                    app.command_buf.push('i');
-                }
-                Mode::Insert => {}
-            },
+            }) => enter_insert_mode(app) ,
             Event::Key(KeyEvent {
                 modifiers: KeyModifiers::NONE,
                 code: KeyCode::Char('r'),
