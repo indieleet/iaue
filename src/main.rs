@@ -109,15 +109,17 @@ where
         let texture_creator = self.canvas.texture_creator();
         for (x, y, el) in content {
             let target = sdl2::rect::Rect::new(x as i32 *8, y as i32 *12, 8, 12);
-            let color_fg = match el.fg {
+            let mut color_fg = match el.fg {
                 Color::Rgb(red, green, blue) => (red, green, blue),
                 _ => (255, 255, 255)
             };
-            let color_bg = match el.bg {
+            let mut color_bg = match el.bg {
                 Color::Rgb(red, green, blue) => (red, green, blue),
                 _ => (0, 0, 0)
             };
-
+            if let ratatui::style::Modifier::REVERSED = el.modifier {
+                core::mem::swap(&mut color_bg, &mut color_fg);
+            };
             let bg_rect = sdl2::rect::Rect::new(x as i32 *8, y as i32 *12, 8, 12);
             self.canvas.set_draw_color(sdl2::pixels::Color::RGBA(color_bg.0, color_bg.1, color_bg.2, 255));
             let _ = self.canvas.fill_rect(bg_rect);
@@ -988,10 +990,249 @@ fn enter_insert_mode(app: &mut App) {
         Mode::Insert => {}
     }
 }
+fn rand_interal(app: &mut App, rand_iter: &mut impl Iterator<Item = u8>) {
+    match app.current_mode {
+        Mode::Insert => {
+            let temp_cell = app.cols[app.normal_cursor.x as usize]
+                [app.normal_cursor.y as usize][app.insert_cursor.x as usize]
+                .clone();
+            app.cols[app.normal_cursor.x as usize][app.normal_cursor.y as usize]
+                [app.insert_cursor.x as usize] =
+                temp_cell.content(format!("{}", rand_iter.next().unwrap()));
+        }
+        Mode::Normal => {}
+        Mode::Command => {
+            app.command_buf.push('r');
+        }
+        _ => (),
+    }
+}
+fn move_left(app: &mut App) {
+    let count: u16 = app.current_times.parse().unwrap_or(1);
+    let _ = &app.current_times.clear();
+    match app.current_mode {
+        Mode::Normal | Mode::Visual => {
+            //let x_bound = app.rows[app.normal_cursor.y as usize].len() as u16;
+            let final_cursor = app.normal_cursor.x.saturating_sub(count);
+            if ((app.normal_cursor.y as usize) < app.cols[final_cursor as usize].len()) && (final_cursor > 0) { app.normal_cursor.x = final_cursor };
+        }
+        Mode::Insert => {
+            let new_cursor_insert = app.insert_cursor.x as isize - count as isize;
+            let insert_bound = app.cols[app.normal_cursor.x as usize][app.normal_cursor.y as usize].len() as isize;
+            // let insert_bound = if app.normal_cursor.y == 0 {
+            //     1
+            // } else if app.normal_cursor.y == 1 {
+            //     3
+            // } else {
+            //     7
+            // };
+            let new_cursor_normal = app.normal_cursor.x as isize
+            - (((new_cursor_insert - insert_bound + 1) / insert_bound).abs());
+            if app.normal_cursor.y >= app.cols[new_cursor_normal as usize].len() as u16 {
+            }
+            else if new_cursor_normal > 0 {
+                app.insert_cursor.x = if new_cursor_insert >= 0 {
+                    new_cursor_insert as u16
+                } else {
+                        (insert_bound + new_cursor_insert % insert_bound) as u16
+                    };
+                app.normal_cursor.x = new_cursor_normal as u16;
+            } else {
+                app.normal_cursor.x = 1;
+                app.insert_cursor.x = 0;
+            }
+        }
+        Mode::Command => {
+            app.command_buf.push('h');
+        }
+    }
+    //app.normal_cursor.x = app.normal_cursor.x.saturating_sub(count);
+    if app.is_help {
+        if let Mode::Normal | Mode::Insert | Mode::Visual = app.current_mode {
+            app.help_page = app.help_page.saturating_sub(count as usize);
+        }
+    }
+}
+fn move_down(app: &mut App) {
+    let count: u16 = app.current_times.parse().unwrap_or(1);
+    let _ = &app.current_times.clear();
+    //cursor.y = cursor.y.saturating_add(count);
+    //let new_y = app.normal_cursor.y.saturating_add(count);
+    match app.current_mode {
+        Mode::Normal | Mode::Visual | Mode::Insert => {
+            //let y_bound = app.rows[app.normal_cursor.y as usize].len() as u16;
+            let new_y = app.normal_cursor.y.saturating_add(count);
+            app.normal_cursor.y = if new_y > app.y_bound - 1 {
+                app.y_bound - 1
+            } else {
+                    new_y
+                };
+            app.count_lines();
+        }
+        Mode::Command => {
+            app.command_buf.push('j');
+        }
+    }
+    //app.normal_cursor.y = if new_y > app.y_bound - 1 { app.y_bound - 1 }
+    //    else { new_y };
+}
+fn move_up(app: &mut App) {
+    let count: u16 = app.current_times.parse().unwrap_or(1);
+    let _ = &app.current_times.clear();
+    match app.current_mode {
+        Mode::Normal | Mode::Visual | Mode::Insert => {
+            let new_cursor = app.normal_cursor.y.saturating_sub(count);
+            if new_cursor > 0 { app.normal_cursor.y = new_cursor };
+            app.count_lines();
+        }
+        Mode::Command => {
+            app.command_buf.push('k');
+        }
+    }
+    //app.normal_cursor.y = app.normal_cursor.y.saturating_sub(count);
+}
+fn move_right(app: &mut App) {
+    let count: u16 = app.current_times.parse().unwrap_or(1);
+    let _ = &app.current_times.clear();
+    match app.current_mode {
+        Mode::Normal | Mode::Visual => {
+            let x_bound = app.cols.len() as u16;
+            let new_x = app.normal_cursor.x.saturating_add(count);
+            app.normal_cursor.x = if new_x > x_bound - 1 {
+                x_bound - 1
+            } else if (app.normal_cursor.y as usize) < app.cols[new_x as usize].len() {
+                    new_x
+                }
+                else { app.normal_cursor.x };
+        }
+        Mode::Insert => {
+            let insert_bound = app.cols[app.normal_cursor.x as usize][app.normal_cursor.y as usize].len() as u16;
+            let new_cursor_insert = app.insert_cursor.x + count as u16;
+            let new_cursor_normal = app
+                .normal_cursor
+                .x
+                .saturating_add(new_cursor_insert / insert_bound);
+            if new_cursor_normal < app.cols.len() as u16 && app.normal_cursor.y >= app.cols[new_cursor_normal as usize].len() as u16 {
+            }
+            else if new_cursor_normal < app.cols.len() as u16 {
+                app.insert_cursor.x = (new_cursor_insert) % insert_bound;
+                app.normal_cursor.x = new_cursor_normal;
+            } else {
+                app.insert_cursor.x = insert_bound - 1;
+                app.normal_cursor.x = app.cols.len() as u16 - 1;
+            }
+        }
+
+        Mode::Command => {
+            app.command_buf.push('l');
+        }
+    }
+    //cursor.x = if new_x > app.x_bound - 1 { app.x_bound - 1 }
+    if app.is_help {
+        if let Mode::Normal | Mode::Insert | Mode::Visual = app.current_mode {
+            let new_page = app.help_page.saturating_add(count as usize);
+            app.help_page = if new_page >= help::TEXT.len() { help::TEXT.len() - 1 } else { new_page }; 
+        }
+    }
+    //    else { new_x };
+}
+fn goto_end(app: &mut App) {
+    let count: u16 = app.current_times.parse().unwrap_or(app.y_bound - 1);
+    let _ = &app.current_times.clear();
+    match app.current_mode {
+        Mode::Normal | Mode::Visual => {
+            app.normal_cursor.y = if count < app.y_bound {
+                count
+            } else {
+                    app.y_bound - 1
+                };
+            app.count_lines();
+        }
+        Mode::Command => {
+            app.command_buf.push('G');
+        }
+        Mode::Insert => {}
+    }
+    //cursor.x = if new_x > app.x_bound - 1 { app.x_bound - 1 }
+    //    else { new_x };
+}
+fn goto_start(app: &mut App) {
+    let count: u16 = app.current_times.parse().unwrap_or(0);
+    let _ = &app.current_times.clear();
+    match app.current_mode {
+        Mode::Normal | Mode::Visual => {
+            app.normal_cursor.y = if count < app.y_bound {
+                count
+            } else {
+                    app.y_bound - 1
+                };
+            app.count_lines();
+        }
+        Mode::Command => {
+            app.command_buf.push('G');
+        }
+        Mode::Insert => {}
+    }
+    //cursor.x = if new_x > app.x_bound - 1 { app.x_bound - 1 }
+    //    else { new_x };
+}
+fn add_line(app: &mut App) {
+    match app.current_mode {
+        Mode::Insert | Mode::Normal | Mode::Visual => {
+            app.cols[app.normal_cursor.x as usize].push(vec![Span::from("1"); 7]);
+            app.count_lines();
+        }
+        Mode::Command => {
+            app.command_buf.push('+');
+        }
+    }
+}
+fn add_fx(app: &mut App) {
+                match app.current_mode {
+                    Mode::Insert | Mode::Normal | Mode::Visual => {
+                        app.cols[app.normal_cursor.x as usize][app.normal_cursor.y as usize].extend(vec![Span::from("0"), Span::from("0")]);
+                        app.count_lines();
+                    }
+                    Mode::Command => {
+                        app.command_buf.push('t');
+                    }
+                }
+            }
+fn remove_fx(app: &mut App) {
+                match app.current_mode {
+                    Mode::Normal | Mode::Visual => {},
+                    Mode::Insert => {
+                        if app.insert_cursor.x % 2 == 0 {
+                            app.cols[app.normal_cursor.x as usize][app.normal_cursor.y as usize].remove(app.insert_cursor.x as usize);
+                            app.cols[app.normal_cursor.x as usize][app.normal_cursor.y as usize].remove(app.insert_cursor.x as usize - 1 );
+                        }
+                        else {
+                            app.cols[app.normal_cursor.x as usize][app.normal_cursor.y as usize].remove(app.insert_cursor.x as usize + 1);
+                            app.cols[app.normal_cursor.x as usize][app.normal_cursor.y as usize].remove(app.insert_cursor.x as usize);
+                        };
+                    }
+                    Mode::Command => {
+                        app.command_buf.push('T');
+                    }
+                }
+            }
+fn add_column(app: &mut App) { match app.current_mode {
+                Mode::Insert | Mode::Normal | Mode::Visual => {
+                    app.cols.push(vec![
+                        vec![Span::from("name")],
+                        vec![Span::from("440"), Span::from("1"), Span::from("1")],
+                        vec![Span::from("1"); 7],
+                    ]);
+                }
+                Mode::Command => {
+                    app.command_buf.push('=');
+                }
+            }
+}
 #[cfg(not(feature = "sdl"))]
 pub fn crossterm_event(app: &mut App, terminal: &mut Terminal<CrosstermBackend<std::io::Stdout>>) -> Result<()> {
     let match_event = event::read()?;
-    let y_bound: u16 = app.cols[app.normal_cursor.x as usize].len() as u16;
+    //let y_bound: u16 = app.cols[app.normal_cursor.x as usize].len() as u16;
 
     let editor = std::env::var("EDITOR").unwrap_or("nvim".to_string());
     let full_path_lib =
@@ -1033,277 +1274,52 @@ pub fn crossterm_event(app: &mut App, terminal: &mut Terminal<CrosstermBackend<s
                 modifiers: KeyModifiers::NONE,
                 code: KeyCode::Char('r'),
                 ..
-            }) => match app.current_mode {
-                Mode::Insert => {
-                    let temp_cell = app.cols[app.normal_cursor.x as usize]
-                        [app.normal_cursor.y as usize][app.insert_cursor.x as usize]
-                        .clone();
-                    app.cols[app.normal_cursor.x as usize][app.normal_cursor.y as usize]
-                        [app.insert_cursor.x as usize] =
-                        temp_cell.content(format!("{}", rand_iter.next().unwrap()));
-                }
-                Mode::Normal => {}
-                Mode::Command => {
-                    app.command_buf.push('r');
-                }
-                _ => (),
-            },
+            }) => rand_interal(app, &mut rand_iter),
             Event::Key(KeyEvent {
                 code: KeyCode::Char('h') | KeyCode::Left,
                 ..
-            }) => {
-                let count: u16 = app.current_times.parse().unwrap_or(1);
-                let _ = &app.current_times.clear();
-                match app.current_mode {
-                    Mode::Normal | Mode::Visual => {
-                        //let x_bound = app.rows[app.normal_cursor.y as usize].len() as u16;
-                        let final_cursor = app.normal_cursor.x.saturating_sub(count);
-                        if ((app.normal_cursor.y as usize) < app.cols[final_cursor as usize].len()) && (final_cursor > 0) { app.normal_cursor.x = final_cursor };
-                    }
-                    Mode::Insert => {
-                        let new_cursor_insert = app.insert_cursor.x as isize - count as isize;
-                        let insert_bound = app.cols[app.normal_cursor.x as usize][app.normal_cursor.y as usize].len() as isize;
-                       // let insert_bound = if app.normal_cursor.y == 0 {
-                       //     1
-                       // } else if app.normal_cursor.y == 1 {
-                       //     3
-                       // } else {
-                       //     7
-                       // };
-                        let new_cursor_normal = app.normal_cursor.x as isize
-                            - (((new_cursor_insert - insert_bound + 1) / insert_bound).abs());
-                        if app.normal_cursor.y >= app.cols[new_cursor_normal as usize].len() as u16 {
-                        }
-                        else if new_cursor_normal > 0 {
-                            app.insert_cursor.x = if new_cursor_insert >= 0 {
-                                new_cursor_insert as u16
-                            } else {
-                                (insert_bound + new_cursor_insert % insert_bound) as u16
-                            };
-                            app.normal_cursor.x = new_cursor_normal as u16;
-                        } else {
-                            app.normal_cursor.x = 1;
-                            app.insert_cursor.x = 0;
-                        }
-                    }
-                    Mode::Command => {
-                        app.command_buf.push('h');
-                    }
-                }
-                //app.normal_cursor.x = app.normal_cursor.x.saturating_sub(count);
-                if app.is_help {
-                    if let Mode::Normal | Mode::Insert | Mode::Visual = app.current_mode {
-                        app.help_page = app.help_page.saturating_sub(count as usize);
-                    }
-                }
-            }
+            }) => move_left(app),
             Event::Key(KeyEvent {
                 //modifiers: KeyModifiers::CONTROL,
                 code: KeyCode::Char('j') | KeyCode::Down,
                 ..
-            }) => {
-                let count: u16 = app.current_times.parse().unwrap_or(1);
-                let _ = &app.current_times.clear();
-                //cursor.y = cursor.y.saturating_add(count);
-                //let new_y = app.normal_cursor.y.saturating_add(count);
-                match app.current_mode {
-                    Mode::Normal | Mode::Visual | Mode::Insert => {
-                        //let y_bound = app.rows[app.normal_cursor.y as usize].len() as u16;
-                        let new_y = app.normal_cursor.y.saturating_add(count);
-                        app.normal_cursor.y = if new_y > y_bound - 1 {
-                            y_bound - 1
-                        } else {
-                            new_y
-                        };
-                        app.count_lines();
-                    }
-                    Mode::Command => {
-                        app.command_buf.push('j');
-                    }
-                }
-                //app.normal_cursor.y = if new_y > app.y_bound - 1 { app.y_bound - 1 }
-                //    else { new_y };
-            }
+            }) => move_down(app),
             Event::Key(KeyEvent {
                 //modifiers: KeyModifiers::CONTROL,
                 code: KeyCode::Char('k') | KeyCode::Up,
                 ..
-            }) => {
-                let count: u16 = app.current_times.parse().unwrap_or(1);
-                let _ = &app.current_times.clear();
-                match app.current_mode {
-                    Mode::Normal | Mode::Visual | Mode::Insert => {
-                        let new_cursor = app.normal_cursor.y.saturating_sub(count);
-                        if new_cursor > 0 { app.normal_cursor.y = new_cursor };
-                        app.count_lines();
-                    }
-                    Mode::Command => {
-                        app.command_buf.push('k');
-                    }
-                }
-                //app.normal_cursor.y = app.normal_cursor.y.saturating_sub(count);
-            }
+            }) => move_up(app),
             Event::Key(KeyEvent {
                 //modifiers: KeyModifiers::CONTROL,
                 code: KeyCode::Char('l') | KeyCode::Right,
                 ..
-            }) => {
-                let count: u16 = app.current_times.parse().unwrap_or(1);
-                let _ = &app.current_times.clear();
-                match app.current_mode {
-                    Mode::Normal | Mode::Visual => {
-                        let x_bound = app.cols.len() as u16;
-                        let new_x = app.normal_cursor.x.saturating_add(count);
-                        app.normal_cursor.x = if new_x > x_bound - 1 {
-                            x_bound - 1
-                        } else if (app.normal_cursor.y as usize) < app.cols[new_x as usize].len() {
-                            new_x
-                        }
-                            else { app.normal_cursor.x };
-                    }
-                    Mode::Insert => {
-                        let insert_bound = app.cols[app.normal_cursor.x as usize][app.normal_cursor.y as usize].len() as u16;
-                        let new_cursor_insert = app.insert_cursor.x + count as u16;
-                        let new_cursor_normal = app
-                            .normal_cursor
-                            .x
-                            .saturating_add(new_cursor_insert / insert_bound);
-                        if new_cursor_normal < app.cols.len() as u16 && app.normal_cursor.y >= app.cols[new_cursor_normal as usize].len() as u16 {
-                        }
-                        else if new_cursor_normal < app.cols.len() as u16 {
-                            app.insert_cursor.x = (new_cursor_insert) % insert_bound;
-                            app.normal_cursor.x = new_cursor_normal;
-                        } else {
-                            app.insert_cursor.x = insert_bound - 1;
-                            app.normal_cursor.x = app.cols.len() as u16 - 1;
-                        }
-                    }
-
-                    Mode::Command => {
-                        app.command_buf.push('l');
-                    }
-                }
-                //cursor.x = if new_x > app.x_bound - 1 { app.x_bound - 1 }
-                if app.is_help {
-                    if let Mode::Normal | Mode::Insert | Mode::Visual = app.current_mode {
-                        let new_page = app.help_page.saturating_add(count as usize);
-                        app.help_page = if new_page >= help::TEXT.len() { help::TEXT.len() - 1 } else { new_page }; 
-                    }
-                }
-                //    else { new_x };
-            }
+            }) => move_right(app),
             Event::Key(KeyEvent {
                 //modifiers: KeyModifiers::CONTROL,
                 code: KeyCode::Char('G'),
                 ..
-            }) => {
-                let count: u16 = app.current_times.parse().unwrap_or(y_bound - 1);
-                let _ = &app.current_times.clear();
-                match app.current_mode {
-                    Mode::Normal | Mode::Visual => {
-                        app.normal_cursor.y = if count < y_bound {
-                            count
-                        } else {
-                            y_bound - 1
-                        };
-                        app.count_lines();
-                    }
-                    Mode::Command => {
-                        app.command_buf.push('G');
-                    }
-                    Mode::Insert => {}
-                }
-                //cursor.x = if new_x > app.x_bound - 1 { app.x_bound - 1 }
-                //    else { new_x };
-            }
+            }) => goto_end(app),
             Event::Key(KeyEvent {
                 //modifiers: KeyModifiers::CONTROL,
                 code: KeyCode::Char('g'),
                 ..
-            }) => {
-                let count: u16 = app.current_times.parse().unwrap_or(0);
-                let _ = &app.current_times.clear();
-                match app.current_mode {
-                    Mode::Normal | Mode::Visual => {
-                        app.normal_cursor.y = if count < y_bound {
-                            count
-                        } else {
-                            y_bound - 1
-                        };
-                        app.count_lines();
-                    }
-                    Mode::Command => {
-                        app.command_buf.push('G');
-                    }
-                    Mode::Insert => {}
-                }
-                //cursor.x = if new_x > app.x_bound - 1 { app.x_bound - 1 }
-                //    else { new_x };
-            }
+            }) => goto_start(app),
             Event::Key(KeyEvent {
                 code: KeyCode::Char('+'),
                 ..
-            }) => {
-                match app.current_mode {
-                    Mode::Insert | Mode::Normal | Mode::Visual => {
-                        app.cols[app.normal_cursor.x as usize].push(vec![Span::from("1"); 7]);
-                        app.count_lines();
-                    }
-                    Mode::Command => {
-                        app.command_buf.push('+');
-                    }
-                }
-            }
+            }) => add_line(app),
             Event::Key(KeyEvent {
                 code: KeyCode::Char('t'),
                 ..
-            }) => {
-                match app.current_mode {
-                    Mode::Insert | Mode::Normal | Mode::Visual => {
-                        app.cols[app.normal_cursor.x as usize][app.normal_cursor.y as usize].extend(vec![Span::from("0"), Span::from("0")]);
-                        app.count_lines();
-                    }
-                    Mode::Command => {
-                        app.command_buf.push('t');
-                    }
-                }
-            }
+            }) => add_fx(app),
             Event::Key(KeyEvent {
                 code: KeyCode::Char('T'),
                 ..
-            }) => {
-                match app.current_mode {
-                    Mode::Normal | Mode::Visual => {},
-                    Mode::Insert => {
-                        if app.insert_cursor.x % 2 == 0 {
-                            app.cols[app.normal_cursor.x as usize][app.normal_cursor.y as usize].remove(app.insert_cursor.x as usize);
-                            app.cols[app.normal_cursor.x as usize][app.normal_cursor.y as usize].remove(app.insert_cursor.x as usize - 1 );
-                        }
-                        else {
-                            app.cols[app.normal_cursor.x as usize][app.normal_cursor.y as usize].remove(app.insert_cursor.x as usize + 1);
-                            app.cols[app.normal_cursor.x as usize][app.normal_cursor.y as usize].remove(app.insert_cursor.x as usize);
-                        };
-                    }
-                    Mode::Command => {
-                        app.command_buf.push('T');
-                    }
-                }
-            }
+            }) => remove_fx(app),
             Event::Key(KeyEvent {
                 code: KeyCode::Char('='),
                 ..
-            }) => match app.current_mode {
-                Mode::Insert | Mode::Normal | Mode::Visual => {
-                    app.cols.push(vec![
-                        vec![Span::from("name")],
-                        vec![Span::from("440"), Span::from("1"), Span::from("1")],
-                        vec![Span::from("1"); 7],
-                    ]);
-                }
-                Mode::Command => {
-                    app.command_buf.push('=');
-                }
-            },
+            }) => add_column(app),
             Event::Key(KeyEvent {
                 code: KeyCode::Char('d'),
                 ..
@@ -1622,6 +1638,22 @@ fn sdl_event(app: &mut App, terminal: &mut Terminal<SdlBackend>) {
                 app.should_leave = true;
                 break
             },
+            Event::KeyDown {
+                    keycode: Some(sdl2::keyboard::Keycode::Left),
+                    ..
+            } => { move_left(app) },
+            Event::KeyDown {
+                    keycode: Some(sdl2::keyboard::Keycode::Down),
+                    ..
+            } => { move_down(app) },
+            Event::KeyDown {
+                    keycode: Some(sdl2::keyboard::Keycode::Up),
+                    ..
+            } => { move_up(app) },
+            Event::KeyDown {
+                    keycode: Some(sdl2::keyboard::Keycode::Right),
+                    ..
+            } => { move_right(app) },
             //e => { println!("{:?}", e); }
             _ => {}
         }
@@ -1684,8 +1716,8 @@ fn start_app(working_file: &str) -> Result<()> {
 
     terminal.clear()?;
     let mut app = App {
-        normal_cursor: NormalCursor{ x: 1, y: 1},
-        visual_cursor: VisualCursor{ x: 1, y: 1},
+        normal_cursor: NormalCursor{ x: 1, y: 1 },
+        visual_cursor: VisualCursor{ x: 1, y: 1 },
         insert_cursor: InsertCursor::default(),
         current_mode: Mode::Normal,
         audio_params: OutputDeviceParameters {
