@@ -238,6 +238,7 @@ pub struct App<'a> {
     help_page: usize,
     is_help: bool,
     should_leave: bool,
+    x_active: bool
 }
 
 impl App<'_> {
@@ -462,7 +463,6 @@ fn render(app: &mut App) -> Vec<f32> {
     let mut out_vec: Vec<(f32, f32)> = vec![];
     let cur_dir = std::env::current_dir().unwrap();
     let lib_name;
-    eprintln!("{}", cur_dir.to_str().unwrap());
     let comp_status = if cur_dir.join("cargolib/").exists() {
         //cargo run --release --manifest-path=iaue/Cargo.toml
         let full_path_lib = std::env::current_dir().unwrap().join("cargolib/");
@@ -1917,6 +1917,20 @@ fn sdl_event(app: &mut App, terminal: &mut Terminal<SdlBackend>) {
                 break;
             }
             Event::KeyDown {
+                keycode: Some(sdl2::keyboard::Keycode::X),
+                keymod: sdl2::keyboard::Mod::LSHIFTMOD,
+                ..
+            } => paste_down(app),
+            Event::KeyDown {
+                keycode: Some(sdl2::keyboard::Keycode::X),
+                keymod: sdl2::keyboard::Mod::NOMOD,
+                ..
+            } => app.x_active = true,
+            Event::KeyUp {
+                keycode: Some(sdl2::keyboard::Keycode::X),
+                ..
+            } => app.x_active = false,
+            Event::KeyDown {
                 keycode: Some(sdl2::keyboard::Keycode::Up),
                 keymod: sdl2::keyboard::Mod::LCTRLMOD,
                 ..
@@ -1929,7 +1943,10 @@ fn sdl_event(app: &mut App, terminal: &mut Terminal<SdlBackend>) {
             Event::KeyDown {
                 keycode: Some(sdl2::keyboard::Keycode::Left),
                 ..
-            } => move_left(app),
+            } => match app.x_active {
+                true => down_cell(app),
+                false => move_left(app),
+            }
             Event::KeyDown {
                 keycode: Some(sdl2::keyboard::Keycode::Down),
                 ..
@@ -1941,7 +1958,11 @@ fn sdl_event(app: &mut App, terminal: &mut Terminal<SdlBackend>) {
             Event::KeyDown {
                 keycode: Some(sdl2::keyboard::Keycode::Right),
                 ..
-            } => move_right(app),
+            } => match app.x_active {
+                true => up_cell(app),
+                false => move_right(app),
+            }
+
             Event::KeyDown {
                 keycode: Some(sdl2::keyboard::Keycode::Home),
                 ..
@@ -1960,18 +1981,16 @@ fn sdl_event(app: &mut App, terminal: &mut Terminal<SdlBackend>) {
                 ..
             } => enter_visual_mode(app),
             Event::KeyDown {
-                keycode: Some(sdl2::keyboard::Keycode::X),
+                keycode: Some(sdl2::keyboard::Keycode::E),
                 ..
             } => enter_insert_mode(app),
             Event::KeyDown {
-                keycode: Some(sdl2::keyboard::Keycode::LCTRL),
-                keymod: sdl2::keyboard::Mod::LSHIFTMOD,
-                ..
-            } => paste_down(app),
-            Event::KeyDown {
                 keycode: Some(sdl2::keyboard::Keycode::Z),
                 ..
-            } => yank(app),
+            } => match app.x_active { 
+                true => remove_line(app),
+                false => yank(app),
+            }
             //e => { println!("{:?}", e); }
             _ => {}
         }
@@ -2077,6 +2096,7 @@ fn start_app(working_file: &str) -> Result<()> {
         help_page: 0,
         is_help: false,
         should_leave: false,
+        x_active: false
     };
     let fn_status = String::new();
     // let full_path_file =

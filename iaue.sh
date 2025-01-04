@@ -24,6 +24,14 @@ export SDL_GAMECONTROLLERCONFIG="$sdl_controllerconfig"
 export GAMEDIR=$(dirname $(realpath $0))/iaue
 cd $GAMEDIR
 export PATH="/userdata/system/.cargo/bin/:$PATH"
+export PATH="/userdata/system/data/bin:$PATH"
+export LD_LIBRARY_PATH="/userdata/system/data/lib/"
+ln -s /userdata/system/data/lib/libm.so.6 /usr/lib/libm.so.6
+ln -s /userdata/system/data/lib/libmvec.so.1 /usr/lib/libmvec.so.1
+ln -s /userdata/system/data/lib/libc.so.6 /usr/lib/libc.so.6
+ln -s /userdata/system/data/lib/libc_nonshared.a /usr/lib/libc_nonshared.a
+ln -s /userdata/system/data/lib/ld-linux-aarch64.so.1 /usr/lib/ld-linux-aarch64.so.1
+
 #SDL_GAMECONTROLLERCONFIG="19000000010000000100000000010000,Deeplay-keys,a:b3,b:b4,x:b6,y:b5,leftshoulder:b7,rightshoulder:b8,lefttrigger:b13,righttrigger:b14,guide:b11,start:b10,back:b9,dpup:h0.1,dpleft:h0.8,dpright:h0.2,dpdown:h0.4,volumedown:b1,volumeup:b2,leftx:a0,lefty:a1,leftstick:b12,rightx:a2,righty:a3,rightstick:b15,platform:Linux," 
 $GPTOKEYB2 -c $GAMEDIR/iaue.gptk & 
 ./iaue ./music-rs &> iaue.log
