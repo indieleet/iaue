@@ -1,0 +1,4 @@
+enum Synths {
+    Rust,
+    Macro
+}

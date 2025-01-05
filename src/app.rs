@@ -1,26 +1,38 @@
+use tinyaudio::prelude::*;
+use ratatui::prelude::*;
+use std::collections::HashMap;
 pub struct App<'a> {
-    normal_cursor: NormalCursor,
-    insert_cursor: InsertCursor,
-    visual_cursor: VisualCursor,
-    current_times: String,
-    current_mode: Mode,
-    audio_params: OutputDeviceParameters,
-    command_buf: String,
+   pub normal_cursor: NormalCursor,
+   pub insert_cursor: InsertCursor,
+   pub visual_cursor: VisualCursor,
+   pub current_times: String,
+   pub current_mode: Mode,
+   pub audio_params: OutputDeviceParameters,
+   pub command_buf: String,
     //file_path: String,
-    file_name: String,
-    theme: HashMap<String, style::Color>,
-    x_bound: u16,
-    y_bound: u16,
-    cols: Vec<Vec<Vec<Span<'a>>>>,
-    yank_buf: Vec<Vec<Vec<Span<'a>>>>,
+   pub file_name: String,
+   pub theme: HashMap<String, style::Color>,
+   pub x_bound: u16,
+   pub y_bound: u16,
+   pub cols: Vec<Vec<Vec<Span<'a>>>>,
+   pub yank_buf: Vec<Vec<Vec<Span<'a>>>>,
     //constrains: Vec<Constraint>,
-    help_page: usize,
-    is_help: bool,
-    should_leave: bool,
+   pub help_page: usize,
+   pub is_help: bool,
+   pub should_leave: bool,
+   pub x_active: bool
+}
+
+#[derive(Debug)]
+pub enum Mode {
+    Normal,
+    Insert,
+    Visual,
+    Command,
 }
 
 impl App<'_> {
-    fn count_lines(&mut self) {
+   pub fn count_lines(&mut self) {
         let max_y = self.cols[1..].iter().map(|it| it.len()).max().unwrap_or(0);
         let mut cols = (0..max_y as isize)
             .map(|it| (it - self.normal_cursor.y as isize).abs())
@@ -30,8 +42,32 @@ impl App<'_> {
             Span::from(self.normal_cursor.y.to_string()).style(self.theme["orange"]);
         self.cols[0] = cols;
     }
-    fn count_bound(&self) -> usize {
-        let bound = self.cols[self.normal_cursor.x as usize][self.normal_cursor.y as usize].iter().map(|it| it.content.len() + 1).sum::<usize>();
-        if bound < 14 { 14 } else { bound }
+    pub fn count_bound(&self) -> usize {
+        let bound = self.cols[self.normal_cursor.x as usize][self.normal_cursor.y as usize]
+            .iter()
+            .map(|it| it.content.len() + 1)
+            .sum::<usize>();
+        if bound < 14 {
+            14
+        } else {
+            bound
+        }
     }
+}
+
+#[derive(Debug, Default)]
+pub struct NormalCursor {
+   pub x: u16,
+   pub y: u16,
+}
+
+#[derive(Debug, Default)]
+pub struct InsertCursor {
+   pub x: u16,
+}
+
+#[derive(Debug, Default)]
+pub struct VisualCursor {
+    pub x: u16,
+    pub y: u16,
 }
