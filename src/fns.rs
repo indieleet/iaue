@@ -3,7 +3,12 @@ use ratatui::prelude::*;
 use crate::help;
 use tinyaudio::prelude::*;
 use std::process::Stdio;
+use std::io::{stdout, Result};
 
+#[cfg(not(feature = "sdl"))]
+use crossterm::terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen};
+use crossterm::ExecutableCommand;
+use std::process::Command;
 fn minmax_x(app: &App) -> (u16, u16) {
     if app.normal_cursor.x < app.visual_cursor.x {
         (app.normal_cursor.x, app.visual_cursor.x)
