@@ -1,4 +1,4 @@
-pub use crate::app::{Mode, App};
+pub use crate::app::{Mode, App, Page};
 use ratatui::prelude::*;
 use crate::help;
 use tinyaudio::prelude::*;
@@ -1242,6 +1242,14 @@ pub fn down_cell(app: &mut App) {
             }
         }
             Mode::Normal | Mode::Visual | Mode::Command => {},
+        
+    }
+}
+pub fn change_page(app: &mut App) {
+    match app.page {
+        Page::Instrument { .. } => app.page = Page::Sequencer,
+        Page::Sequencer => app.page = Page::Instrument { id: app.cols[app.normal_cursor.x as usize][app.normal_cursor.y as usize][6].to_string().parse::<u8>().unwrap_or(0) },
+        Page::InsturmentList => {}
         
     }
 }

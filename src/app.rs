@@ -1,26 +1,43 @@
 use tinyaudio::prelude::*;
 use ratatui::prelude::*;
 use std::collections::HashMap;
+use crate::synths::Synths;
+
 pub struct App<'a> {
-   pub normal_cursor: NormalCursor,
-   pub insert_cursor: InsertCursor,
-   pub visual_cursor: VisualCursor,
-   pub current_times: String,
-   pub current_mode: Mode,
-   pub audio_params: OutputDeviceParameters,
-   pub command_buf: String,
+    pub normal_cursor: NormalCursor,
+    pub insert_cursor: InsertCursor,
+    pub visual_cursor: VisualCursor,
+    pub current_times: String,
+    pub current_mode: Mode,
+    pub audio_params: OutputDeviceParameters,
+    pub command_buf: String,
     //file_path: String,
-   pub file_name: String,
-   pub theme: HashMap<String, style::Color>,
-   pub x_bound: u16,
-   pub y_bound: u16,
-   pub cols: Vec<Vec<Vec<Span<'a>>>>,
-   pub yank_buf: Vec<Vec<Vec<Span<'a>>>>,
+    pub file_name: String,
+    pub theme: HashMap<String, style::Color>,
+    pub x_bound: u16,
+    pub y_bound: u16,
+    pub cols: Vec<Vec<Vec<Span<'a>>>>,
+    pub instrs: [Option<Instrument<'a>>; 256],
+    pub yank_buf: Vec<Vec<Vec<Span<'a>>>>,
     //constrains: Vec<Constraint>,
-   pub help_page: usize,
-   pub is_help: bool,
-   pub should_leave: bool,
-   pub x_active: bool
+    pub page: Page,
+    pub help_page: usize,
+    pub is_help: bool,
+    pub should_leave: bool,
+    pub x_active: bool,
+}
+
+#[derive(Debug, Copy, Clone)]
+pub struct Instrument<'a> {
+    pub name: &'a str,
+    pub synth: Synths
+}
+
+#[derive(Debug)]
+pub enum Page {
+    Sequencer,
+    Instrument { id: u8 },
+    InsturmentList,
 }
 
 #[derive(Debug)]

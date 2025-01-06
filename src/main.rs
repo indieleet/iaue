@@ -3,7 +3,7 @@ mod init_config;
 mod app;
 mod fns;
 mod synths;
-use crate::app::{App, Mode, NormalCursor, VisualCursor, InsertCursor};
+use crate::app::{App, Mode, NormalCursor, VisualCursor, InsertCursor, Page};
 #[cfg(feature = "sdl")]
 mod sdl_event;
 #[cfg(feature = "sdl")]
@@ -22,9 +22,6 @@ use crossterm::{
 use ratatui::backend::CrosstermBackend;
 
 use ratatui::{layout::Direction, prelude::*, style::Stylize, widgets::*, Terminal};
-
-#[cfg(feature = "sdl")]
-use ratatui::backend::Backend;
 
 use style::Styled;
 // TODO: #[cfg(not(feature = "sdl"))]
@@ -56,7 +53,7 @@ struct TableWithCells<'a> {
 
 impl Widget for TableWithCells<'_> {
     fn render(self, area: Rect, buf: &mut Buffer)
-    where
+where
         Self: Sized,
     {
         let constr_col = Layout::horizontal(vec![
@@ -64,139 +61,145 @@ impl Widget for TableWithCells<'_> {
             Constraint::Min(1),
             Constraint::Max(1),
         ])
-        .split(area);
+            .split(area);
         let constr_rows = Layout::vertical(vec![
             Constraint::Max(1),
             Constraint::Min(1),
             Constraint::Max(3),
         ])
-        .split(constr_col[1]);
-        let temp_bound = self.app.count_bound(); //TODO: don't call this fn every time
-        let constr_x = ratatui::layout::Layout::default()
-            .direction(Direction::Horizontal)
-            .constraints(
-                [
-                    vec![Constraint::Max(4)],
-                    vec![Constraint::Max(14); self.app.normal_cursor.x.saturating_sub(1) as usize],
-                    vec![Constraint::Max(temp_bound as u16)],
-                    vec![
-                        Constraint::Max(14);
-                        self.app.cols.len() - self.app.normal_cursor.x as usize - 1
-                    ],
-                ]
-                .concat(),
-            )
-            .split(constr_rows[1]);
+            .split(constr_col[1]);
+        match self.app.page {
+            Page::Sequencer => {
+                let temp_bound = self.app.count_bound(); //TODO: don't call this fn every time
+                let constr_x = ratatui::layout::Layout::default()
+                    .direction(Direction::Horizontal)
+                    .constraints(
+                        [
+                            vec![Constraint::Max(4)],
+                            vec![Constraint::Max(14); self.app.normal_cursor.x.saturating_sub(1) as usize],
+                            vec![Constraint::Max(temp_bound as u16)],
+                            vec![
+                                Constraint::Max(14);
+                                self.app.cols.len() - self.app.normal_cursor.x as usize - 1
+                            ],
+                        ]
+                            .concat(),
+                    )
+                    .split(constr_rows[1]);
 
-        let (max_vx, min_vx) = if self.app.normal_cursor.x >= self.app.visual_cursor.x {
-            (self.app.normal_cursor.x, self.app.visual_cursor.x)
-        } else {
-            (self.app.visual_cursor.x, self.app.normal_cursor.x)
-        };
-        let (max_vy, min_vy) = if self.app.normal_cursor.y >= self.app.visual_cursor.y {
-            (self.app.normal_cursor.y, self.app.visual_cursor.y)
-        } else {
-            (self.app.visual_cursor.y, self.app.normal_cursor.y)
-        };
+                let (max_vx, min_vx) = if self.app.normal_cursor.x >= self.app.visual_cursor.x {
+                    (self.app.normal_cursor.x, self.app.visual_cursor.x)
+                } else {
+                    (self.app.visual_cursor.x, self.app.normal_cursor.x)
+                };
+                let (max_vy, min_vy) = if self.app.normal_cursor.y >= self.app.visual_cursor.y {
+                    (self.app.normal_cursor.y, self.app.visual_cursor.y)
+                } else {
+                    (self.app.visual_cursor.y, self.app.normal_cursor.y)
+                };
 
-        //Highlight line
-        match self.app.current_mode {
-            Mode::Normal | Mode::Insert => {
-                buf.set_span(
-                    constr_col[1].x,
-                    self.app.normal_cursor.y + constr_rows[1].y,
-                    &Span::from(" ".repeat(area.width as usize)).bg(self.app.theme["bg_highlight"]),
-                    area.width - 2,
-                );
-            }
-            _ => {}
-        }
-        for (col_i, col) in self.app.cols.iter().enumerate() {
-            let constr_y = ratatui::layout::Layout::default()
-                .direction(Direction::Vertical)
-                .constraints(vec![Constraint::Max(1); col.len()])
-                .split(constr_x[col_i]);
-            for (i, el) in col.iter().enumerate() {
-                let curr_len = el.len();
-                let line_bound = if curr_len > 7 { 7 } else { curr_len };
-                let bounded_el = if (col_i == self.app.normal_cursor.x as usize)
-                    && (i == self.app.normal_cursor.y as usize)
-                {
-                    &el[..]
-                } else {
-                    &el[..line_bound]
-                };
-                let constr_c = if col_i != 0 {
-                    layout::Layout::default()
-                        .direction(Direction::Horizontal)
-                        .constraints(
-                            bounded_el
-                                .iter()
-                                .map(|it| Constraint::Max(it.content.len() as u16 + 1))
-                                .collect::<Vec<_>>(),
-                        )
-                        .split(constr_y[i])
-                } else {
-                    layout::Layout::default()
-                        .direction(Direction::Horizontal)
-                        .constraints(vec![Constraint::Max(3)])
-                        .split(constr_y[i])
-                };
-                for (ci, c) in bounded_el.iter().enumerate() {
-                    let (cell_style, inside_style) = match self.app.current_mode {
-                        Mode::Visual
-                            if (i >= min_vy as usize && i <= max_vy as usize)
+                //Highlight line
+                match self.app.current_mode {
+                    Mode::Normal | Mode::Insert => {
+                        buf.set_span(
+                            constr_col[1].x,
+                            self.app.normal_cursor.y + constr_rows[1].y,
+                            &Span::from(" ".repeat(area.width as usize)).bg(self.app.theme["bg_highlight"]),
+                            area.width - 2,
+                        );
+                    }
+                    _ => {}
+                }
+                for (col_i, col) in self.app.cols.iter().enumerate() {
+                    let constr_y = ratatui::layout::Layout::default()
+                        .direction(Direction::Vertical)
+                        .constraints(vec![Constraint::Max(1); col.len()])
+                        .split(constr_x[col_i]);
+                    for (i, el) in col.iter().enumerate() {
+                        let curr_len = el.len();
+                        let line_bound = if curr_len > 7 { 7 } else { curr_len };
+                        let bounded_el = if (col_i == self.app.normal_cursor.x as usize)
+                        && (i == self.app.normal_cursor.y as usize)
+                        {
+                            &el[..]
+                        } else {
+                            &el[..line_bound]
+                        };
+                        let constr_c = if col_i != 0 {
+                            layout::Layout::default()
+                                .direction(Direction::Horizontal)
+                                .constraints(
+                                    bounded_el
+                                        .iter()
+                                        .map(|it| Constraint::Max(it.content.len() as u16 + 1))
+                                        .collect::<Vec<_>>(),
+                                )
+                                .split(constr_y[i])
+                        } else {
+                            layout::Layout::default()
+                                .direction(Direction::Horizontal)
+                                .constraints(vec![Constraint::Max(3)])
+                                .split(constr_y[i])
+                        };
+                        for (ci, c) in bounded_el.iter().enumerate() {
+                            let (cell_style, inside_style) = match self.app.current_mode {
+                                Mode::Visual
+                                if (i >= min_vy as usize && i <= max_vy as usize)
                                 && (col_i >= min_vx as usize && col_i <= max_vx as usize) =>
-                        {
-                            (Modifier::REVERSED, Modifier::REVERSED)
-                        }
-                        Mode::Normal
-                            if (col_i == self.app.normal_cursor.x as usize
+                                {
+                                    (Modifier::REVERSED, Modifier::REVERSED)
+                                }
+                                Mode::Normal
+                                if (col_i == self.app.normal_cursor.x as usize
                                 && i == self.app.normal_cursor.y as usize) =>
-                        {
-                            (Modifier::REVERSED, Modifier::REVERSED)
-                        }
-                        Mode::Insert
-                            if (col_i == self.app.normal_cursor.x as usize
+                                {
+                                    (Modifier::REVERSED, Modifier::REVERSED)
+                                }
+                                Mode::Insert
+                                if (col_i == self.app.normal_cursor.x as usize
                                 && i == self.app.normal_cursor.y as usize
                                 && ci == self.app.insert_cursor.x as usize) =>
-                        {
-                            (Modifier::REVERSED, Modifier::default())
+                                {
+                                    (Modifier::REVERSED, Modifier::default())
+                                }
+                                _ => (Modifier::default(), Modifier::default()),
+                            };
+                            let c_len = if c.content.is_empty() {
+                                1
+                            } else {
+                                c.content.len() as u16
+                            };
+                            let printed_cell = if !c.content.is_empty() {
+                                &c.clone().patch_style(cell_style)
+                            } else {
+                                &Span::from(" ").patch_style(cell_style)
+                            };
+                            buf.set_span(constr_c[ci].x, constr_c[ci].y, printed_cell, c_len);
+                            match ci {
+                                0 | 2 | 4 if (i > 1) && (col_i > 0) => {
+                                    buf.set_span(
+                                        constr_c[ci].x + c_len,
+                                        constr_c[ci].y,
+                                        &Span::from("/").style(inside_style),
+                                        1,
+                                    );
+                                }
+                                ci if (i > 1) && (col_i > 0) => {
+                                    buf.set_span(
+                                        constr_c[ci].x + c_len,
+                                        constr_c[ci].y,
+                                        &Span::from(" ").set_style(inside_style),
+                                        1,
+                                    );
+                                }
+                                _ => (),
+                            }
                         }
-                        _ => (Modifier::default(), Modifier::default()),
-                    };
-                    let c_len = if c.content.is_empty() {
-                        1
-                    } else {
-                        c.content.len() as u16
-                    };
-                    let printed_cell = if !c.content.is_empty() {
-                        &c.clone().patch_style(cell_style)
-                    } else {
-                        &Span::from(" ").patch_style(cell_style)
-                    };
-                    buf.set_span(constr_c[ci].x, constr_c[ci].y, printed_cell, c_len);
-                    match ci {
-                        0 | 2 | 4 if (i > 1) && (col_i > 0) => {
-                            buf.set_span(
-                                constr_c[ci].x + c_len,
-                                constr_c[ci].y,
-                                &Span::from("/").style(inside_style),
-                                1,
-                            );
-                        }
-                        ci if (i > 1) && (col_i > 0) => {
-                            buf.set_span(
-                                constr_c[ci].x + c_len,
-                                constr_c[ci].y,
-                                &Span::from(" ").set_style(inside_style),
-                                1,
-                            );
-                        }
-                        _ => (),
                     }
                 }
             }
+            Page::Instrument{ id } => { buf.set_span(1, 1, &Span::from(id.to_string()), 1); },
+            Page::InsturmentList => {}
         }
     }
 }
@@ -231,9 +234,8 @@ fn init_panic_hook() {
     }));
 }
 
-use std::io;
 #[cfg(not(feature = "sdl"))]
-fn restore_tui() -> io::Result<()> {
+fn restore_tui() -> std::io::Result<()> {
     disable_raw_mode()?;
     stdout().execute(LeaveAlternateScreen)?;
     Ok(())
@@ -336,6 +338,8 @@ fn start_app(working_file: &str) -> Result<()> {
                 vec![Span::from("1").to_owned(); 7],
             ],
         ],
+        instrs: [None; 256],
+        page: Page::Sequencer,
         yank_buf: Vec::new(),
         //constrains: vec![Constraint::Max(3); 6],
         help_page: 0,

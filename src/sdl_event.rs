@@ -16,43 +16,6 @@ pub struct SdlBackend {
 impl SdlBackend {
     pub fn new() -> SdlBackend {
         let sdl_context = sdl2::init().unwrap();
-        //sdl2::hint::set("SDL_JOYSTICK_THREAD", "1");
-        //sdl2::hint::set("SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS", "1");
-        //sdl2::hint::set("SDL_HINT_JOYSTICK_RAWINPUT", "1");
-        //        let game_controller_subsystem = sdl_context.game_controller().unwrap();
-        //
-        //let available = game_controller_subsystem
-        //    .num_joysticks()
-        //    .map_err(|e| format!("can't enumerate joysticks: {}", e)).unwrap();
-        //
-        //println!("{} joysticks available", available);
-        //
-        //// Iterate over all available joysticks and look for game controllers.
-        //let controller = (0..available)
-        //    .find_map(|id| {
-        //        if !game_controller_subsystem.is_game_controller(id) {
-        //            println!("{} is not a game controller", id);
-        //            return None;
-        //        }
-        //
-        //        println!("Attempting to open controller {}", id);
-        //
-        //        match game_controller_subsystem.open(id) {
-        //            Ok(c) => {
-        //                // We managed to find and open a game controller,
-        //                // exit the loop
-        //                println!("Success: opened \"{}\"", c.name());
-        //                Some(c)
-        //            }
-        //            Err(e) => {
-        //                println!("failed: {:?}", e);
-        //                None
-        //            }
-        //        }
-        //    })
-        //    .expect("Couldn't open any controller");
-        //
-        ////println!("Controller mapping: {}", controller.mapping());
         let video_subsystem = sdl_context.video().unwrap();
         let window = video_subsystem
             .window("iaue", 640, 480)
@@ -179,6 +142,11 @@ pub fn sdl_event(app: &mut App, terminal: &mut Terminal<SdlBackend>) {
                 app.should_leave = true;
                 break;
             }
+            Event::KeyDown {
+                    keycode: Some(sdl2::keyboard::Keycode::Right),
+                keymod: sdl2::keyboard::Mod::LSHIFTMOD,
+                ..
+            } => change_page(app),
             Event::KeyDown {
                 keycode: Some(sdl2::keyboard::Keycode::X),
                 keymod: sdl2::keyboard::Mod::LSHIFTMOD,
