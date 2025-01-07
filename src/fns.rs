@@ -1,12 +1,15 @@
-pub use crate::app::{Mode, App, Page};
-use ratatui::prelude::*;
+use crate::app::{App, Mode, Page, Instrument};
+use crate::synths::Synths;
 use crate::help;
-use tinyaudio::prelude::*;
-use std::process::Stdio;
+use ratatui::prelude::*;
 use std::io::{stdout, Result};
+use std::process::Stdio;
+use tinyaudio::prelude::*;
 
 #[cfg(not(feature = "sdl"))]
-use crossterm::terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen};
+use crossterm::terminal::{
+    disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
+};
 use crossterm::ExecutableCommand;
 use std::process::Command;
 fn minmax_x(app: &App) -> (u16, u16) {
@@ -1194,13 +1197,17 @@ pub fn child_render(app: &mut App) {
                 *samples = out_vec_iter.next().unwrap_or(0.0);
             }
         })
-            .unwrap();
+        .unwrap();
         std::thread::sleep(std::time::Duration::from_secs(max_len as u64 / 44100));
     });
 }
 
 #[cfg(not(feature = "sdl"))]
-pub fn open_editor(editor: &String, full_path_lib: &std::path::PathBuf, terminal: &mut Terminal<CrosstermBackend<std::io::Stdout>>) -> Result<()> {
+pub fn open_editor(
+    editor: &String,
+    full_path_lib: &std::path::PathBuf,
+    terminal: &mut Terminal<CrosstermBackend<std::io::Stdout>>,
+) -> Result<()> {
     stdout().execute(LeaveAlternateScreen)?;
     disable_raw_mode()?;
     Command::new(editor).arg(full_path_lib).status()?;
@@ -1209,47 +1216,72 @@ pub fn open_editor(editor: &String, full_path_lib: &std::path::PathBuf, terminal
     let _ = terminal.clear();
     Ok(())
 }
-pub fn child_execute_command(app:&mut App) {match app.current_mode {
-            Mode::Command => exec_command(app),
-            Mode::Normal | Mode::Insert | Mode::Visual => {}
-        }
+pub fn child_execute_command(app: &mut App) {
+    match app.current_mode {
+        Mode::Command => exec_command(app),
+        Mode::Normal | Mode::Insert | Mode::Visual => {}
+    }
 }
 pub fn insert_symbol_to_cmd(app: &mut App, matched_code: char) {
-match app.current_mode {
-            Mode::Command => {
-                app.command_buf.push(matched_code);
-            }
-            Mode::Normal | Mode::Visual | Mode::Insert => {},
+    match app.current_mode {
+        Mode::Command => {
+            app.command_buf.push(matched_code);
         }
+        Mode::Normal | Mode::Visual | Mode::Insert => {}
+    }
 }
 
 pub fn up_cell(app: &mut App) {
     match app.current_mode {
         Mode::Insert => {
-            if let Ok(num) = app.cols[app.normal_cursor.x as usize][app.normal_cursor.y as usize][app.insert_cursor.x as usize].to_string().parse::<u16>() {
-                app.cols[app.normal_cursor.x as usize][app.normal_cursor.y as usize][app.insert_cursor.x as usize].content = (num + 1).to_string().into();
+        match app.page {
+                Page::Sequencer => {
+                    if let Ok(num) = app.cols[app.normal_cursor.x as usize][app.normal_cursor.y as usize]
+                        [app.insert_cursor.x as usize]
+                        .to_string()
+                        .parse::<u16>()
+                    {
+                        app.cols[app.normal_cursor.x as usize][app.normal_cursor.y as usize]
+                            [app.insert_cursor.x as usize]
+                            .content = (num + 1).to_string().into();
+                    }
+                }
+                Page::Instrument { id } => { app.instrs[id as usize] = Some(Instrument { name: "synth", synth: Synths::Rust { name: "rust", num: 0, level: 1 }});}
+                Page::InsturmentList => {}
             }
         }
-            Mode::Normal | Mode::Visual | Mode::Command => {},
-        
+        Mode::Normal | Mode::Visual | Mode::Command => {}
     }
 }
 pub fn down_cell(app: &mut App) {
     match app.current_mode {
         Mode::Insert => {
-            if let Ok(num) = app.cols[app.normal_cursor.x as usize][app.normal_cursor.y as usize][app.insert_cursor.x as usize].to_string().parse::<u16>() {
-                app.cols[app.normal_cursor.x as usize][app.normal_cursor.y as usize][app.insert_cursor.x as usize].content = (num - 1).to_string().into();
+            if let Ok(num) = app.cols[app.normal_cursor.x as usize][app.normal_cursor.y as usize]
+                [app.insert_cursor.x as usize]
+                .to_string()
+                .parse::<u16>()
+            {
+                app.cols[app.normal_cursor.x as usize][app.normal_cursor.y as usize]
+                    [app.insert_cursor.x as usize]
+                    .content = (num - 1).to_string().into();
             }
         }
-            Mode::Normal | Mode::Visual | Mode::Command => {},
-        
+        Mode::Normal | Mode::Visual | Mode::Command => {}
     }
 }
 pub fn change_page(app: &mut App) {
     match app.page {
         Page::Instrument { .. } => app.page = Page::Sequencer,
-        Page::Sequencer => app.page = Page::Instrument { id: app.cols[app.normal_cursor.x as usize][app.normal_cursor.y as usize][6].to_string().parse::<u8>().unwrap_or(0) },
+        Page::Sequencer => {
+            app.page = Page::Instrument {
+                id: app.cols[app.normal_cursor.x as usize][app.normal_cursor.y as usize]
+                    .get(6)
+                    .unwrap_or(&Span::from("0"))
+                    .to_string()
+                    .parse::<u8>()
+                    .unwrap_or(0),
+            }
+        }
         Page::InsturmentList => {}
-        
     }
 }

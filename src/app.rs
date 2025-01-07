@@ -30,7 +30,7 @@ pub struct App<'a> {
 #[derive(Debug, Copy, Clone)]
 pub struct Instrument<'a> {
     pub name: &'a str,
-    pub synth: Synths
+    pub synth: Synths<'a>
 }
 
 #[derive(Debug)]

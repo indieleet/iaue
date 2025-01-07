@@ -198,7 +198,28 @@ where
                     }
                 }
             }
-            Page::Instrument{ id } => { buf.set_span(1, 1, &Span::from(id.to_string()), 1); },
+            Page::Instrument{ id } => { 
+                match self.app.instrs[id as usize]
+                    {
+                    Some(instr) => {
+                        buf.set_span(1, 1, &Span::from(id.to_string()), 3);
+                        buf.set_span(5, 1, &Span::from(format!("name: {}", instr.name)), 14);
+                        match instr.synth {
+                            synths::Synths::Rust { name, num, level } => {
+                                buf.set_span(1, 2, &Span::from("type: rust"), 10);
+                            }
+                            synths::Synths::Macro { name, level } => {
+                                buf.set_span(1, 2, &Span::from("type: macro"), 11);
+                            }
+                        }
+                    },
+                        None => { 
+                        buf.set_span(1, 1, &Span::from(id.to_string()), 1);
+                        buf.set_span(1, 1, &Span::from(id.to_string()), 1);
+
+                    }
+                }
+            }
             Page::InsturmentList => {}
         }
     }
