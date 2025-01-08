@@ -199,14 +199,23 @@ where
                 }
             }
             Page::Instrument{ id } => { 
-                match self.app.instrs[id as usize]
-                    {
+                match self.app.instrs[id as usize] { 
                     Some(instr) => {
                         buf.set_span(1, 1, &Span::from(id.to_string()), 3);
-                        buf.set_span(5, 1, &Span::from(format!("name: {}", instr.name)), 14);
+                        buf.set_span(5, 1, &Span::from(format!("name: {}", instr.name))
+                                .patch_style(match self.app.instr_cursor {
+                                    0 => Modifier::REVERSED,
+                                    _ => Modifier::default()
+                                }),
+                        14);
                         match instr.synth {
                             synths::Synths::Rust { name, num, level } => {
-                                buf.set_span(1, 2, &Span::from("type: rust"), 10);
+                                buf.set_span(1, 2, &Span::from("type: rust")
+                                .patch_style(match self.app.instr_cursor {
+                                    1 => Modifier::REVERSED,
+                                    _ => Modifier::default()
+                                }),
+                                10);
                             }
                             synths::Synths::Macro { name, level } => {
                                 buf.set_span(1, 2, &Span::from("type: macro"), 11);
@@ -214,8 +223,8 @@ where
                         }
                     },
                         None => { 
-                        buf.set_span(1, 1, &Span::from(id.to_string()), 1);
-                        buf.set_span(1, 1, &Span::from(id.to_string()), 1);
+                        buf.set_span(1, 1, &Span::from(id.to_string()), 3);
+                        buf.set_span(5, 1, &Span::from("-".repeat(8)), 1);
 
                     }
                 }

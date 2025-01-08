@@ -22,6 +22,7 @@ pub struct App<'a> {
     //constrains: Vec<Constraint>,
     pub page: Page,
     pub help_page: usize,
+    pub instr_cursor: usize,
     pub is_help: bool,
     pub should_leave: bool,
     pub x_active: bool,
