@@ -333,6 +333,7 @@ fn start_app(working_file: &str) -> Result<()> {
         normal_cursor: NormalCursor { x: 1, y: 1 },
         visual_cursor: VisualCursor { x: 1, y: 1 },
         insert_cursor: InsertCursor::default(),
+        instr_cursor: 0,
         current_mode: Mode::Normal,
         audio_params: OutputDeviceParameters {
             channels_count: 2,
