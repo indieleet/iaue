@@ -816,8 +816,8 @@ pub fn move_down(app: &mut App) {
     let _ = &app.current_times.clear();
     //cursor.y = cursor.y.saturating_add(count);
     //let new_y = app.normal_cursor.y.saturating_add(count);
-    match app.current_mode {
-        Mode::Normal | Mode::Visual | Mode::Insert => {
+    match (app.current_mode, app.page) {
+        (Mode::Normal | Mode::Visual | Mode::Insert, Page::Sequencer) => {
             //let y_bound = app.rows[app.normal_cursor.y as usize].len() as u16;
             let new_y = app.normal_cursor.y.saturating_add(count);
             app.normal_cursor.y = if new_y > app.y_bound - 1 {
@@ -827,9 +827,11 @@ pub fn move_down(app: &mut App) {
             };
             app.count_lines();
         }
-        Mode::Command => {
+        (Mode::Command, Page::Sequencer) => {
             app.command_buf.push('j');
         }
+        (Mode::Normal | Mode::Insert, Page::Instrument { .. }) => { app.instr_cursor = app.instr_cursor.saturating_add(count as usize); }
+        _ => {}
     }
     //app.normal_cursor.y = if new_y > app.y_bound - 1 { app.y_bound - 1 }
     //    else { new_y };
@@ -837,17 +839,19 @@ pub fn move_down(app: &mut App) {
 pub fn move_up(app: &mut App) {
     let count: u16 = app.current_times.parse().unwrap_or(1);
     let _ = &app.current_times.clear();
-    match app.current_mode {
-        Mode::Normal | Mode::Visual | Mode::Insert => {
+    match (app.current_mode, app.page) {
+        (Mode::Normal | Mode::Visual | Mode::Insert, Page::Sequencer) => {
             let new_cursor = app.normal_cursor.y.saturating_sub(count);
             if new_cursor > 0 {
                 app.normal_cursor.y = new_cursor
             };
             app.count_lines();
         }
-        Mode::Command => {
+        (Mode::Command, Page::Sequencer) => {
             app.command_buf.push('k');
         }
+        (Mode::Normal | Mode::Insert, Page::Instrument { .. }) => { app.instr_cursor = app.instr_cursor.saturating_sub(count as usize); }
+        _ => {}
     }
     //app.normal_cursor.y = app.normal_cursor.y.saturating_sub(count);
 }
@@ -1231,26 +1235,23 @@ pub fn insert_symbol_to_cmd(app: &mut App, matched_code: char) {
     }
 }
 
-pub fn up_cell(app: &mut App) {
-    match app.current_mode {
-        Mode::Insert => {
-        match app.page {
-                Page::Sequencer => {
-                    if let Ok(num) = app.cols[app.normal_cursor.x as usize][app.normal_cursor.y as usize]
-                        [app.insert_cursor.x as usize]
-                        .to_string()
-                        .parse::<u16>()
-                    {
-                        app.cols[app.normal_cursor.x as usize][app.normal_cursor.y as usize]
-                            [app.insert_cursor.x as usize]
-                            .content = (num + 1).to_string().into();
-                    }
-                }
-                Page::Instrument { id } => { app.instrs[id as usize] = Some(Instrument { name: "synth", synth: Synths::Rust { name: "rust", num: 0, level: 1 }});}
-                Page::InsturmentList => {}
+pub fn up_cell<const AMOUNT: i8>(app: &mut App) {
+    match (app.current_mode, app.page) {
+        (Mode::Insert, Page::Sequencer) => {
+            if let Ok(num) = app.cols[app.normal_cursor.x as usize][app.normal_cursor.y as usize]
+                [app.insert_cursor.x as usize]
+                .to_string()
+                .parse::<u8>()
+            {
+                app.cols[app.normal_cursor.x as usize][app.normal_cursor.y as usize]
+                    [app.insert_cursor.x as usize]
+                    .content = num.saturating_add_signed(AMOUNT).to_string().into();
             }
         }
-        Mode::Normal | Mode::Visual | Mode::Command => {}
+        (Mode::Insert | Mode::Normal, Page::Instrument { id }) => {
+            app.instrs[id as usize] = Some(Instrument { name: "synth", synth: Synths::Rust { name: "rust", num: 0, level: 1 }});}
+        (Mode::Normal | Mode::Visual | Mode::Command, ..) => {},
+        _ => {}
     }
 }
 pub fn down_cell(app: &mut App) {
@@ -1284,4 +1285,8 @@ pub fn change_page(app: &mut App) {
         }
         Page::InsturmentList => {}
     }
+}
+
+pub fn change_instr(app: &mut App, id: u8) {
+
 }

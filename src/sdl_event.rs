@@ -143,16 +143,6 @@ pub fn sdl_event(app: &mut App, terminal: &mut Terminal<SdlBackend>) {
                 break;
             }
             Event::KeyDown {
-                    keycode: Some(sdl2::keyboard::Keycode::Right),
-                keymod: sdl2::keyboard::Mod::LSHIFTMOD,
-                ..
-            } => change_page(app),
-            Event::KeyDown {
-                keycode: Some(sdl2::keyboard::Keycode::X),
-                keymod: sdl2::keyboard::Mod::LSHIFTMOD,
-                ..
-            } => paste_down(app),
-            Event::KeyDown {
                 keycode: Some(sdl2::keyboard::Keycode::X),
                 keymod: sdl2::keyboard::Mod::NOMOD,
                 ..
@@ -162,35 +152,41 @@ pub fn sdl_event(app: &mut App, terminal: &mut Terminal<SdlBackend>) {
                 ..
             } => app.x_active = false,
             Event::KeyDown {
+                keycode: Some(sdl2::keyboard::Keycode::Right),
+                keymod: sdl2::keyboard::Mod::LSHIFTMOD,
+                ..
+            } => change_page(app),
+            Event::KeyDown {
+                keycode: Some(sdl2::keyboard::Keycode::X),
+                keymod: sdl2::keyboard::Mod::LSHIFTMOD,
+                ..
+            } => paste_down(app),
+            Event::KeyDown {
                 keycode: Some(sdl2::keyboard::Keycode::Up),
-                keymod: sdl2::keyboard::Mod::LCTRLMOD,
-                ..
-            } => up_cell(app),
-            Event::KeyDown {
-                keycode: Some(sdl2::keyboard::Keycode::Down),
-                keymod: sdl2::keyboard::Mod::LCTRLMOD,
-                ..
-            } => down_cell(app),
-            Event::KeyDown {
-                keycode: Some(sdl2::keyboard::Keycode::Left),
                 ..
             } => match app.x_active {
-                true => down_cell(app),
-                false => move_left(app),
+                true => up_cell::<10>(app),
+                false => move_up(app),
             }
             Event::KeyDown {
                 keycode: Some(sdl2::keyboard::Keycode::Down),
                 ..
-            } => move_down(app),
+            } => match app.x_active {
+                true => up_cell::<-10>(app),
+                false => move_down(app),
+            }
             Event::KeyDown {
-                keycode: Some(sdl2::keyboard::Keycode::Up),
+                keycode: Some(sdl2::keyboard::Keycode::Left),
                 ..
-            } => move_up(app),
+            } => match app.x_active {
+                true => up_cell::<-1>(app),
+                false => move_left(app),
+            }
             Event::KeyDown {
                 keycode: Some(sdl2::keyboard::Keycode::Right),
                 ..
             } => match app.x_active {
-                true => up_cell(app),
+                true => up_cell::<1>(app),
                 false => move_right(app),
             }
 

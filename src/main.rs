@@ -224,7 +224,13 @@ where
                     },
                         None => { 
                         buf.set_span(1, 1, &Span::from(id.to_string()), 3);
-                        buf.set_span(5, 1, &Span::from("-".repeat(8)), 1);
+                        buf.set_span(5, 1, &Span::from("-".repeat(8)), 8);
+                                buf.set_span(1, 2, &Span::from("type: none")
+                                .patch_style(match self.app.instr_cursor {
+                                    1 => Modifier::REVERSED,
+                                    _ => Modifier::default()
+                                }),
+                                10);
 
                     }
                 }

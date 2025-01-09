@@ -34,14 +34,14 @@ pub struct Instrument<'a> {
     pub synth: Synths<'a>
 }
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub enum Page {
     Sequencer,
     Instrument { id: u8 },
     InsturmentList,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum Mode {
     Normal,
     Insert,
