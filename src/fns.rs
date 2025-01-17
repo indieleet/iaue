@@ -27,6 +27,19 @@ fn minmax_y(app: &App) -> (u16, u16) {
         (app.visual_cursor.y, app.normal_cursor.y)
     }
 }
+
+fn apply_fn(app: &mut App, id: u8) {
+    match app.instrs[id as usize] {
+        Some(instr) => {
+            match instr.synth {
+                Synths::Rust { name, num, level } => {},
+                Synths::Macro { name, level } => {},
+            }
+        },
+         None => {}
+        
+    }
+}
 pub fn render(app: &mut App) -> Vec<f32> {
     let mut out_vec: Vec<(f32, f32)> = vec![];
     let cur_dir = std::env::current_dir().unwrap();
@@ -1270,10 +1283,15 @@ pub fn down_cell(app: &mut App) {
         Mode::Normal | Mode::Visual | Mode::Command => {}
     }
 }
-pub fn change_page(app: &mut App) {
-    match app.page {
-        Page::Instrument { .. } => app.page = Page::Sequencer,
-        Page::Sequencer => {
+
+enum Side {
+Left,
+Right
+}
+pub fn change_page<const SIDE_IS_RIGHT: bool>(app: &mut App) {
+    match (app.page, SIDE_IS_RIGHT) {
+        (Page::Instrument { .. }, false) => app.page = Page::Sequencer,
+        (Page::Sequencer, true) => {
             app.page = Page::Instrument {
                 id: app.cols[app.normal_cursor.x as usize][app.normal_cursor.y as usize]
                     .get(6)
@@ -1283,7 +1301,8 @@ pub fn change_page(app: &mut App) {
                     .unwrap_or(0),
             }
         }
-        Page::InsturmentList => {}
+        (Page::InsturmentList, true) => {}
+        _ => {}
     }
 }
 

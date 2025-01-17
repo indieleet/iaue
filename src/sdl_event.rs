@@ -152,10 +152,15 @@ pub fn sdl_event(app: &mut App, terminal: &mut Terminal<SdlBackend>) {
                 ..
             } => app.x_active = false,
             Event::KeyDown {
+                keycode: Some(sdl2::keyboard::Keycode::Left),
+                keymod: sdl2::keyboard::Mod::LSHIFTMOD,
+                ..
+            } => change_page::<false>(app),
+            Event::KeyDown {
                 keycode: Some(sdl2::keyboard::Keycode::Right),
                 keymod: sdl2::keyboard::Mod::LSHIFTMOD,
                 ..
-            } => change_page(app),
+            } => change_page::<true>(app),
             Event::KeyDown {
                 keycode: Some(sdl2::keyboard::Keycode::X),
                 keymod: sdl2::keyboard::Mod::LSHIFTMOD,
