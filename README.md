@@ -79,6 +79,9 @@ TODO
 - [ ] sunvox support
 - [ ] pure data support
 - [ ] dawproject file export
+- [ ] add modulators
+- [ ] add map widget
+- [ ] add macro synth
 - [ ] remove some dependencies
     - [ ] change serde to nanoserde
 - [ ] add template for cargolib

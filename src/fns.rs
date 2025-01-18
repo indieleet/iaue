@@ -108,6 +108,7 @@ pub fn render(app: &mut App) -> Vec<f32> {
     fn f1(_f: f32, l: f32, _v: f32, t: usize, _p: &[f32]) -> Vec<(f32, f32)> {
         vec![(0.0, 0.0); (l * t as f32) as usize]
     }
+
     if comp_status.status.success() {
         unsafe {
             let lib = libloading::Library::new(lib_name).unwrap();
@@ -1284,10 +1285,6 @@ pub fn down_cell(app: &mut App) {
     }
 }
 
-enum Side {
-Left,
-Right
-}
 pub fn change_page<const SIDE_IS_RIGHT: bool>(app: &mut App) {
     match (app.page, SIDE_IS_RIGHT) {
         (Page::Instrument { .. }, false) => app.page = Page::Sequencer,
