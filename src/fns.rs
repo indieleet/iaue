@@ -32,7 +32,7 @@ fn apply_fn(app: &mut App, id: u8) {
     match app.instrs[id as usize] {
         Some(instr) => {
             match instr.synth {
-                Synths::Rust { name, num, level } => {},
+                Synths::Rust { name, num, level, fn_symbol } => {},
                 Synths::Macro { name, level } => {},
             }
         },
@@ -40,8 +40,8 @@ fn apply_fn(app: &mut App, id: u8) {
         
     }
 }
-pub fn render(app: &mut App) -> Vec<f32> {
-    let mut out_vec: Vec<(f32, f32)> = vec![];
+
+fn build_lib(app: &mut App) -> (std::process::Output, std::path::PathBuf) {
     let cur_dir = std::env::current_dir().unwrap();
     let lib_name;
     let comp_status = if cur_dir.join("cargolib/").exists() {
@@ -85,7 +85,11 @@ pub fn render(app: &mut App) -> Vec<f32> {
     };
     let err_out = std::str::from_utf8(&comp_status.stderr).unwrap_or("meh");
     app.command_buf = err_out.to_string();
+    (comp_status, lib_name)
+}
 
+pub fn render(app: &mut App) -> Vec<f32> {
+    let mut out_vec: Vec<(f32, f32)> = vec![];
     let mut output: Vec<Vec<(f32, f32)>> = vec![Vec::new(); app.cols.len()];
     let mut unique_fn: Vec<String> = Vec::new();
     for col in &app.cols[1..] {
@@ -95,6 +99,7 @@ pub fn render(app: &mut App) -> Vec<f32> {
             }
         }
     }
+
     let mut unique_fx: Vec<String> = Vec::new();
     for col in &app.cols[1..] {
         for el in &col[1][3..] {
@@ -103,12 +108,13 @@ pub fn render(app: &mut App) -> Vec<f32> {
             }
         }
     }
+
     let mut fns = std::collections::HashMap::new();
     let mut fxes_fns = std::collections::HashMap::new();
     fn f1(_f: f32, l: f32, _v: f32, t: usize, _p: &[f32]) -> Vec<(f32, f32)> {
         vec![(0.0, 0.0); (l * t as f32) as usize]
     }
-
+let (comp_status, lib_name) = build_lib(app);
     if comp_status.status.success() {
         unsafe {
             let lib = libloading::Library::new(lib_name).unwrap();
@@ -129,6 +135,7 @@ pub fn render(app: &mut App) -> Vec<f32> {
                 >>(("fx".to_string() + &el).as_bytes());
                 fxes_fns.insert(el.clone(), f0);
             }
+
             for (i, col) in app.cols[1..].iter().enumerate() {
                 let (mut fs, mut ls, mut vs) = (440.0, 1.0, 1.0);
                 let mut fxes = Vec::new();
