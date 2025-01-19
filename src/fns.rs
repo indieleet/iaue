@@ -28,7 +28,8 @@ fn minmax_y(app: &App) -> (u16, u16) {
     }
 }
 
-fn apply_fn(app: &mut App, id: u8) {
+type Sample = (f64, f64);
+fn apply_fn(app: &mut App, id: u8) -> Vec<Sample> {
     match app.instrs[id as usize] {
         Some(instr) => {
             match instr.synth {
@@ -36,14 +37,18 @@ fn apply_fn(app: &mut App, id: u8) {
                 Synths::Macro { name, level } => {},
             }
         },
-         None => {}
+         None => { }
         
     }
 }
 
-fn build_lib(app: &mut App) -> (std::process::Output, std::path::PathBuf) {
+fn build_lib(app: &mut App) {
     let cur_dir = std::env::current_dir().unwrap();
     let lib_name;
+    let mut unique_fn: Vec<String> = Vec::new();
+    let mut unique_fx: Vec<String> = Vec::new();
+    //let mut fns = std::collections::HashMap::new();
+    let mut fxes_fns = std::collections::HashMap::new();
     let comp_status = if cur_dir.join("cargolib/").exists() {
         //cargo run --release --manifest-path=iaue/Cargo.toml
         let full_path_lib = std::env::current_dir().unwrap().join("cargolib/");
@@ -85,44 +90,20 @@ fn build_lib(app: &mut App) -> (std::process::Output, std::path::PathBuf) {
     };
     let err_out = std::str::from_utf8(&comp_status.stderr).unwrap_or("meh");
     app.command_buf = err_out.to_string();
-    (comp_status, lib_name)
-}
-
-pub fn render(app: &mut App) -> Vec<f32> {
-    let mut out_vec: Vec<(f32, f32)> = vec![];
-    let mut output: Vec<Vec<(f32, f32)>> = vec![Vec::new(); app.cols.len()];
-    let mut unique_fn: Vec<String> = Vec::new();
-    for col in &app.cols[1..] {
-        for el in &col[2..] {
-            if !unique_fn.contains(&el[6].to_string()) {
-                unique_fn.push(el[6].to_string().clone());
-            }
-        }
-    }
-
-    let mut unique_fx: Vec<String> = Vec::new();
-    for col in &app.cols[1..] {
-        for el in &col[1][3..] {
-            if !unique_fx.contains(&el.to_string()) {
-                unique_fx.push(el.to_string().clone());
-            }
-        }
-    }
-
-    let mut fns = std::collections::HashMap::new();
-    let mut fxes_fns = std::collections::HashMap::new();
-    fn f1(_f: f32, l: f32, _v: f32, t: usize, _p: &[f32]) -> Vec<(f32, f32)> {
-        vec![(0.0, 0.0); (l * t as f32) as usize]
-    }
-let (comp_status, lib_name) = build_lib(app);
     if comp_status.status.success() {
         unsafe {
             let lib = libloading::Library::new(lib_name).unwrap();
-            for el in unique_fn {
-                let f0 = lib.get::<libloading::Symbol<
-                    unsafe extern "C" fn(f32, f32, f32, usize, &[f32]) -> Vec<(f32, f32)>,
-                >>(("f".to_string() + &el).as_bytes());
-                fns.insert(el.clone(), f0);
+            for i in 0..app.instrs.len() {
+                match app.instrs[i] {
+                    Some(ref mut instr) => match instr.synth {
+                        Synths::Rust { name, num, level, ref mut fn_symbol } => {
+                            *fn_symbol = Some(lib.get::<libloading::Symbol<
+                                unsafe extern "C" fn(f32, f32, f32, usize, &[f32]) -> Vec<(f32, f32)>,
+                                >>(("f".to_string() + &num.to_string()).as_bytes()).unwrap());}
+                        _ => {}
+                    },
+                    _ => {}
+                }
             }
             for el in unique_fx {
                 let f0 = lib.get::<libloading::Symbol<
@@ -132,10 +113,41 @@ let (comp_status, lib_name) = build_lib(app);
                         &[f32],
                         &[Vec<(f32, f32)>],
                     ) -> Vec<(f32, f32)>,
-                >>(("fx".to_string() + &el).as_bytes());
+                    >>(("fx".to_string() + &el).as_bytes());
                 fxes_fns.insert(el.clone(), f0);
             }
+        }
+    }
+}
 
+pub fn render(app: &mut App) -> Vec<f32> {
+    let mut out_vec: Vec<(f32, f32)> = vec![];
+    let mut output: Vec<Vec<(f32, f32)>> = vec![Vec::new(); app.cols.len()];
+    let mut unique_fn: Vec<String> = Vec::new();
+    //for col in &app.cols[1..] {
+    //    for el in &col[2..] {
+    //        if !unique_fn.contains(&el[6].to_string()) {
+    //            unique_fn.push(el[6].to_string().clone());
+    //        }
+    //    }
+    //}
+    //
+    let mut unique_fx: Vec<String> = Vec::new();
+    for col in &app.cols[1..] {
+        for el in &col[1][3..] {
+            if !unique_fx.contains(&el.to_string()) {
+                unique_fx.push(el.to_string().clone());
+            }
+        }
+    }
+    
+   let mut fns = std::collections::HashMap::new();
+   let mut fxes_fns = std::collections::HashMap::new();
+   fn f1(_f: f32, l: f32, _v: f32, t: usize, _p: &[f32]) -> Vec<(f32, f32)> {
+       vec![(0.0, 0.0); (l * t as f32) as usize]
+   }
+    {  
+        {
             for (i, col) in app.cols[1..].iter().enumerate() {
                 let (mut fs, mut ls, mut vs) = (440.0, 1.0, 1.0);
                 let mut fxes = Vec::new();
