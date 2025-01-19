@@ -37,7 +37,7 @@ fn apply_fn(app: &mut App, id: u8) -> Vec<Sample> {
                 Synths::Macro { name, level } => {},
             }
         },
-         None => { }
+         None => { vec![(0.0, 0.0)] }
         
     }
 }
@@ -92,12 +92,12 @@ fn build_lib(app: &mut App) {
     app.command_buf = err_out.to_string();
     if comp_status.status.success() {
         unsafe {
-            let lib = libloading::Library::new(lib_name).unwrap();
+            app.lib = libloading::Library::new(lib_name).unwrap();
             for i in 0..app.instrs.len() {
                 match app.instrs[i] {
                     Some(ref mut instr) => match instr.synth {
                         Synths::Rust { name, num, level, ref mut fn_symbol } => {
-                            *fn_symbol = Some(lib.get::<libloading::Symbol<
+                            *fn_symbol = Some(app.lib.get::<'a, libloading::Symbol<'a,
                                 unsafe extern "C" fn(f32, f32, f32, usize, &[f32]) -> Vec<(f32, f32)>,
                                 >>(("f".to_string() + &num.to_string()).as_bytes()).unwrap());}
                         _ => {}
@@ -106,7 +106,7 @@ fn build_lib(app: &mut App) {
                 }
             }
             for el in unique_fx {
-                let f0 = lib.get::<libloading::Symbol<
+                let f0 = app.lib.get::<libloading::Symbol<
                     unsafe extern "C" fn(
                         &[(f32, f32)],
                         usize,

@@ -26,6 +26,7 @@ pub struct App<'a> {
     pub is_help: bool,
     pub should_leave: bool,
     pub x_active: bool,
+    pub lib: libloading::Library
 }
 
 #[derive(Debug, Copy, Clone)]
