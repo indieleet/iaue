@@ -42,7 +42,7 @@ fn apply_fn(app: &mut App, id: u8) -> Vec<Sample> {
     }
 }
 
-fn build_lib(app: &mut App) {
+fn build_lib<'a>(app: &'a mut App<'a>) {
     let cur_dir = std::env::current_dir().unwrap();
     let lib_name;
     let mut unique_fn: Vec<String> = Vec::new();
@@ -97,9 +97,9 @@ fn build_lib(app: &mut App) {
                 match app.instrs[i] {
                     Some(ref mut instr) => match instr.synth {
                         Synths::Rust { name, num, level, ref mut fn_symbol } => {
-                            *fn_symbol = Some(app.lib.get::<'a, libloading::Symbol<'a,
+                            core::mem::replace(fn_symbol, Some(app.lib.get::<libloading::Symbol<
                                 unsafe extern "C" fn(f32, f32, f32, usize, &[f32]) -> Vec<(f32, f32)>,
-                                >>(("f".to_string() + &num.to_string()).as_bytes()).unwrap());}
+                                >>(("f".to_string() + &num.to_string()).as_bytes()).unwrap()));}
                         _ => {}
                     },
                     _ => {}
