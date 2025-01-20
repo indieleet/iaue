@@ -28,17 +28,29 @@ fn minmax_y(app: &App) -> (u16, u16) {
     }
 }
 
-type Sample = (f64, f64);
-fn apply_fn(app: &mut App, id: u8) -> Vec<Sample> {
+type Sample = (f32, f32);
+fn apply_fn(app: &mut App, id: u8, f: f32, l: f32, v: f32, t: usize, p: &[f32]) -> Vec<Sample> {
     match app.instrs[id as usize] {
         Some(instr) => {
             match instr.synth {
-                Synths::Rust { name, num, level, fn_symbol } => {},
-                Synths::Macro { name, level } => {},
+                Synths::Rust { name, num, level, fn_symbol } => {
+                    if let Some(inner_fn_symbol) = fn_symbol {
+                        unsafe {
+                            inner_fn_symbol(f, l, v, t, p)
+                        }
+                    }
+                    else {
+                        vec![(0.0, 0.0); (l * t as f32) as usize]
+                    }
+
+                },
+                Synths::Macro { name, level } => { vec![(0.0, 0.0); (l * t as f32) as usize] },
             }
         },
-         None => { vec![(0.0, 0.0)] }
-        
+        None => { 
+            vec![(0.0, 0.0); (l * t as f32) as usize]
+        }
+
     }
 }
 
