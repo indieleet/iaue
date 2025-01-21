@@ -441,7 +441,14 @@ pub fn render(app: &mut App) -> Vec<f32> {
                         for (fs, ls, vs) in pushed_args {
                             match pushed_fn {
                                 Ok(val) => {
-                                    let out_tuple = val(
+                                    let out_tuple = apply_fn(
+                                        &mut app,
+                                        el_iter
+                            .next()
+                            .unwrap_or(&Span::from("0"))
+                            .content
+                            .parse::<u8>()
+                            .unwrap_or(0),
                                         fs,
                                         ls / slice_param,
                                         vs,
@@ -1294,7 +1301,7 @@ pub fn up_cell<const AMOUNT: i8>(app: &mut App) {
             }
         }
         (Mode::Insert | Mode::Normal, Page::Instrument { id }) => {
-            app.instrs[id as usize] = Some(Instrument { name: "synth", synth: Synths::Rust { name: "rust", num: 0, level: 1 }});}
+            app.instrs[id as usize] = Some(Instrument { name: "synth", synth: Synths::Rust { name: "rust", num: 0, level: 1, fn_symbol: None }});}
         (Mode::Normal | Mode::Visual | Mode::Command, ..) => {},
         _ => {}
     }
