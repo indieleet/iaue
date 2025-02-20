@@ -16,6 +16,8 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
+    - name: Install ALSA development package
+      run: apt-get install libasound2-dev
     - name: Build
       run: cargo build --release --verbose
     - name: Run tests
