@@ -3,6 +3,8 @@ use ratatui::prelude::*;
 use std::collections::HashMap;
 use crate::synths::Synths;
 
+pub type FxFn<'lib> = Result<libloading::Symbol<'lib, libloading::Symbol<'lib, unsafe extern "C" fn(&[(f32, f32)], usize, &[f32], &[Vec<(f32, f32)>]) -> Vec<(f32, f32)>>>, libloading::Error>;
+
 pub struct App<'a> {
     pub normal_cursor: NormalCursor,
     pub insert_cursor: InsertCursor,
@@ -18,6 +20,7 @@ pub struct App<'a> {
     pub y_bound: u16,
     pub cols: Vec<Vec<Vec<Span<'a>>>>,
     pub instrs: [Option<Instrument<'a>>; 256],
+    pub fx_fns: HashMap<String, FxFn<'a>>,
     pub yank_buf: Vec<Vec<Vec<Span<'a>>>>,
     //constrains: Vec<Constraint>,
     pub page: Page,
@@ -29,7 +32,7 @@ pub struct App<'a> {
     pub lib: libloading::Library
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Clone)]
 pub struct Instrument<'a> {
     pub name: &'a str,
     pub synth: Synths<'a>

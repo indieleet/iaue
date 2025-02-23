@@ -29,10 +29,10 @@ fn minmax_y(app: &App) -> (u16, u16) {
 }
 
 type Sample = (f32, f32);
-fn apply_fn(app: &mut App, id: u8, f: f32, l: f32, v: f32, t: usize, p: &[f32]) -> Vec<Sample> {
-    match app.instrs[id as usize] {
+fn apply_fn(app: &App, id: u8, f: f32, l: f32, v: f32, t: usize, p: &[f32]) -> Vec<Sample> {
+    match &app.instrs[id as usize] {
         Some(instr) => {
-            match instr.synth {
+            match &instr.synth {
                 Synths::Rust { name, num, level, fn_symbol } => {
                     if let Some(inner_fn_symbol) = fn_symbol {
                         unsafe {
@@ -57,10 +57,17 @@ fn apply_fn(app: &mut App, id: u8, f: f32, l: f32, v: f32, t: usize, p: &[f32]) 
 fn build_lib<'a>(app: &'a mut App<'a>) {
     let cur_dir = std::env::current_dir().unwrap();
     let lib_name;
-    let mut unique_fn: Vec<String> = Vec::new();
     let mut unique_fx: Vec<String> = Vec::new();
+    for col in &app.cols[1..] {
+        for el in &col[1][3..] {
+            if !unique_fx.contains(&el.to_string()) {
+                unique_fx.push(el.to_string().clone());
+            }
+        }
+    }
+    //let mut unique_fn: Vec<String> = Vec::new();
+    //let mut unique_fx: Vec<String> = Vec::new();
     //let mut fns = std::collections::HashMap::new();
-    let mut fxes_fns = std::collections::HashMap::new();
     let comp_status = if cur_dir.join("cargolib/").exists() {
         //cargo run --release --manifest-path=iaue/Cargo.toml
         let full_path_lib = std::env::current_dir().unwrap().join("cargolib/");
@@ -111,7 +118,8 @@ fn build_lib<'a>(app: &'a mut App<'a>) {
                         Synths::Rust { name, num, level, ref mut fn_symbol } => {
                             core::mem::replace(fn_symbol, Some(app.lib.get::<libloading::Symbol<
                                 unsafe extern "C" fn(f32, f32, f32, usize, &[f32]) -> Vec<(f32, f32)>,
-                                >>(("f".to_string() + &num.to_string()).as_bytes()).unwrap()));}
+                                >>(("f".to_string() + &num.to_string()).as_bytes()).unwrap()));
+                        }
                         _ => {}
                     },
                     _ => {}
@@ -126,16 +134,13 @@ fn build_lib<'a>(app: &'a mut App<'a>) {
                         &[Vec<(f32, f32)>],
                     ) -> Vec<(f32, f32)>,
                     >>(("fx".to_string() + &el).as_bytes());
-                fxes_fns.insert(el.clone(), f0);
+                app.fx_fns.insert(el.clone(), f0);
             }
         }
     }
 }
 
 pub fn render(app: &mut App) -> Vec<f32> {
-    let mut out_vec: Vec<(f32, f32)> = vec![];
-    let mut output: Vec<Vec<(f32, f32)>> = vec![Vec::new(); app.cols.len()];
-    let mut unique_fn: Vec<String> = Vec::new();
     //for col in &app.cols[1..] {
     //    for el in &col[2..] {
     //        if !unique_fn.contains(&el[6].to_string()) {
@@ -144,21 +149,16 @@ pub fn render(app: &mut App) -> Vec<f32> {
     //    }
     //}
     //
-    let mut unique_fx: Vec<String> = Vec::new();
-    for col in &app.cols[1..] {
-        for el in &col[1][3..] {
-            if !unique_fx.contains(&el.to_string()) {
-                unique_fx.push(el.to_string().clone());
-            }
-        }
+   //let mut fns = std::collections::HashMap::new();
+   //let mut fxes_fns = std::collections::HashMap::new();
+    fn f1(_f: f32, l: f32, _v: f32, t: usize, _p: &[f32]) -> Vec<(f32, f32)> {
+        vec![(0.0, 0.0); (l * t as f32) as usize]
     }
-    
-   let mut fns = std::collections::HashMap::new();
-   let mut fxes_fns = std::collections::HashMap::new();
-   fn f1(_f: f32, l: f32, _v: f32, t: usize, _p: &[f32]) -> Vec<(f32, f32)> {
-       vec![(0.0, 0.0); (l * t as f32) as usize]
-   }
-    {  
+
+    let mut unique_fn: Vec<String> = Vec::new();
+    let mut out_vec: Vec<(f32, f32)> = vec![];
+    let mut output: Vec<Vec<(f32, f32)>> = vec![Vec::new(); app.cols.len()];
+    {
         {
             for (i, col) in app.cols[1..].iter().enumerate() {
                 let (mut fs, mut ls, mut vs) = (440.0, 1.0, 1.0);
@@ -199,11 +199,12 @@ pub fn render(app: &mut App) -> Vec<f32> {
                         (fs, ls, vs) = (fs * f, ls * l, v * vs);
                         let (mut new_f, mut new_l, mut new_v) = (fs, ls, vs);
                         let (mut fc, mut lc, mut vc) = (new_f, new_l, new_v);
-                        let pushed_fn = &fns[&el_iter
+                        let pushed_fn = el_iter
                             .next()
                             .unwrap_or(&Span::from("0"))
                             .content
-                            .to_string()];
+                            .to_string()
+                            .parse::<usize>();
                         let mut note_repeat = 1;
                         let mut slice_param = 1.0;
                         let mut fx_params_slice = Vec::new();
@@ -442,7 +443,7 @@ pub fn render(app: &mut App) -> Vec<f32> {
                             match pushed_fn {
                                 Ok(val) => {
                                     let out_tuple = apply_fn(
-                                        &mut app,
+                                        app,
                                         el_iter
                             .next()
                             .unwrap_or(&Span::from("0"))
@@ -482,16 +483,20 @@ pub fn render(app: &mut App) -> Vec<f32> {
                     }
                 }
                 for (idx, fx) in fxes.iter().enumerate() {
-                    let cur_fx = &fxes_fns[&fx.to_string()];
+                    let cur_fx = &app.fx_fns[&fx.to_string()];
                     match cur_fx {
                         Ok(val) => {
-                            let out_tuple = val(
+                            unsafe {
+                            let out_tuple = 
+                            val(
                                 output[i].as_slice(),
                                 44100,
                                 fx_params[idx].as_slice(),
                                 output.as_slice(),
                             );
+                            
                             output[i] = out_tuple;
+                            }
                         }
                         Err(_) => {}
                     }

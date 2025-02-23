@@ -199,7 +199,7 @@ where
                 }
             }
             Page::Instrument{ id } => { 
-                match self.app.instrs[id as usize] { 
+                match &self.app.instrs[id as usize] { 
                     Some(instr) => {
                         buf.set_span(1, 1, &Span::from(id.to_string()), 3);
                         buf.set_span(5, 1, &Span::from(format!("name: {}", instr.name))
@@ -208,8 +208,8 @@ where
                                     _ => Modifier::default()
                                 }),
                         14);
-                        match instr.synth {
-                            synths::Synths::Rust { name, num, level } => {
+                        match &instr.synth {
+                            synths::Synths::Rust { name, num, level, fn_symbol } => {
                                 buf.set_span(1, 2, &Span::from("type: rust")
                                 .patch_style(match self.app.instr_cursor {
                                     1 => Modifier::REVERSED,
@@ -335,6 +335,50 @@ fn start_app(working_file: &str) -> Result<()> {
     let mut terminal = Terminal::new(SdlBackend::new())?;
 
     terminal.clear()?;
+    
+    // TODO: delete this and change lib type to Option<libloading::Library>
+    use std::process::Stdio;
+    let cur_dir = std::env::current_dir().unwrap();
+    let lib_name;
+    let comp_status = if cur_dir.join("cargolib/").exists() {
+        //cargo run --release --manifest-path=iaue/Cargo.toml
+        let full_path_lib = std::env::current_dir().unwrap().join("cargolib/");
+        let out = std::process::Command::new("cargo")
+            .arg("build")
+            .arg("--release")
+            .arg("--manifest-path=cargolib/Cargo.toml")
+            .stdout(Stdio::null())
+            .stderr(Stdio::piped())
+            .output()
+            //.inspect_err(|e| app.command_buf = e.to_string())
+            .unwrap();
+        lib_name = std::path::Path::new(&full_path_lib)
+            .join("target/")
+            .join("release/")
+            .join("libcargolib.so")
+            .canonicalize()
+            .unwrap();
+        out
+    } else {
+        let full_path_lib = std::env::current_dir()
+            .unwrap()
+            .join(working_file.to_string().clone() + ".rs");
+        let out = std::process::Command::new("rustc")
+            .arg("-C")
+            .arg("target-feature=-crt-static")
+            .arg("--crate-type")
+            .arg("cdylib")
+            .arg(&full_path_lib)
+            .stdout(Stdio::null())
+            .stderr(Stdio::piped())
+            .output()
+            //.inspect_err(|e| app.command_buf = e.to_string())
+            .unwrap();
+        lib_name = std::path::Path::new(&("lib".to_string().to_owned() + working_file + ".so"))
+            .canonicalize()
+            .unwrap();
+        out
+    };
     let mut app = App {
         normal_cursor: NormalCursor { x: 1, y: 1 },
         visual_cursor: VisualCursor { x: 1, y: 1 },
@@ -375,14 +419,16 @@ fn start_app(working_file: &str) -> Result<()> {
                 vec![Span::from("1").to_owned(); 7],
             ],
         ],
-        instrs: [None; 256],
+        instrs: core::array::from_fn(|_| None),
         page: Page::Sequencer,
         yank_buf: Vec::new(),
         //constrains: vec![Constraint::Max(3); 6],
         help_page: 0,
         is_help: false,
         should_leave: false,
-        x_active: false
+        x_active: false,
+        lib: unsafe { libloading::Library::new(lib_name).unwrap() },
+        fx_fns: HashMap::new()
     };
     let fn_status = String::new();
     // let full_path_file =
