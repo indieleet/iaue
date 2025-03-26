@@ -427,7 +427,7 @@ fn start_app(working_file: &str) -> Result<()> {
         is_help: false,
         should_leave: false,
         x_active: false,
-        lib: unsafe { libloading::Library::new(lib_name).unwrap() },
+        lib: unsafe { Some(libloading::Library::new(lib_name).unwrap()) },
         fx_fns: HashMap::new()
     };
     let fn_status = String::new();

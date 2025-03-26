@@ -34,13 +34,18 @@ fn apply_fn(app: &App, id: u8, f: f32, l: f32, v: f32, t: usize, p: &[f32]) -> V
         Some(instr) => {
             match &instr.synth {
                 Synths::Rust { name, num, level, fn_symbol } => {
-                    if let Some(inner_fn_symbol) = fn_symbol {
-                        unsafe {
+
+                    unsafe {
+                        let fn_get = app.lib.as_ref().unwrap().get::<libloading::Symbol<
+                        unsafe extern "C" fn(f32, f32, f32, usize, &[f32]) -> Vec<(f32, f32)>,
+                        >>(("f".to_string() + &num.to_string()).as_bytes());
+                     
+                    if let Ok(inner_fn_symbol) = fn_get {
                             inner_fn_symbol(f, l, v, t, p)
                         }
-                    }
                     else {
                         vec![(0.0, 0.0); (l * t as f32) as usize]
+                    }
                     }
 
                 },
@@ -111,31 +116,31 @@ fn build_lib<'a>(app: &'a mut App<'a>) {
     app.command_buf = err_out.to_string();
     if comp_status.status.success() {
         unsafe {
-            app.lib = libloading::Library::new(lib_name).unwrap();
-            for i in 0..app.instrs.len() {
-                match app.instrs[i] {
-                    Some(ref mut instr) => match instr.synth {
-                        Synths::Rust { name, num, level, ref mut fn_symbol } => {
-                            core::mem::replace(fn_symbol, Some(app.lib.get::<libloading::Symbol<
-                                unsafe extern "C" fn(f32, f32, f32, usize, &[f32]) -> Vec<(f32, f32)>,
-                                >>(("f".to_string() + &num.to_string()).as_bytes()).unwrap()));
-                        }
-                        _ => {}
-                    },
-                    _ => {}
-                }
-            }
-            for el in unique_fx {
-                let f0 = app.lib.get::<libloading::Symbol<
-                    unsafe extern "C" fn(
-                        &[(f32, f32)],
-                        usize,
-                        &[f32],
-                        &[Vec<(f32, f32)>],
-                    ) -> Vec<(f32, f32)>,
-                    >>(("fx".to_string() + &el).as_bytes());
-                app.fx_fns.insert(el.clone(), f0);
-            }
+            app.lib = Some(libloading::Library::new(lib_name).unwrap());
+            //for i in 0..app.instrs.len() {
+            //    match app.instrs[i] {
+            //        Some(ref mut instr) => match instr.synth {
+            //            Synths::Rust { name, num, level, ref mut fn_symbol } => {
+            //                fn_symbol.replace(Some(app.lib.borrow().unwrap().get::<libloading::Symbol<
+            //                    unsafe extern "C" fn(f32, f32, f32, usize, &[f32]) -> Vec<(f32, f32)>,
+            //                    >>(("f".to_string() + &num.to_string()).as_bytes()).unwrap()));
+            //            }
+            //            _ => {}
+            //        },
+            //        _ => {}
+            //    }
+            //}
+            //for el in unique_fx {
+            //    let f0 = app.lib.unwrap().get::<libloading::Symbol<
+            //        unsafe extern "C" fn(
+            //            &[(f32, f32)],
+            //            usize,
+            //            &[f32],
+            //            &[Vec<(f32, f32)>],
+            //        ) -> Vec<(f32, f32)>,
+            //        >>(("fx".to_string() + &el).as_bytes());
+            //    app.fx_fns.insert(el.clone(), f0);
+            //}
         }
     }
 }
@@ -483,10 +488,17 @@ pub fn render(app: &mut App) -> Vec<f32> {
                     }
                 }
                 for (idx, fx) in fxes.iter().enumerate() {
-                    let cur_fx = &app.fx_fns[&fx.to_string()];
+                    unsafe {
+                        let cur_fx = app.lib.as_ref().unwrap().get::<libloading::Symbol<
+                            unsafe extern "C" fn(
+                                &[(f32, f32)],
+                                usize,
+                                &[f32],
+                                &[Vec<(f32, f32)>],
+                            ) -> Vec<(f32, f32)>,
+                    >>(("fx".to_string() + &fx.to_string()).as_bytes());
                     match cur_fx {
                         Ok(val) => {
-                            unsafe {
                             let out_tuple = 
                             val(
                                 output[i].as_slice(),
@@ -494,11 +506,10 @@ pub fn render(app: &mut App) -> Vec<f32> {
                                 fx_params[idx].as_slice(),
                                 output.as_slice(),
                             );
-                            
                             output[i] = out_tuple;
-                            }
                         }
                         Err(_) => {}
+                        }
                     }
                 }
             }
