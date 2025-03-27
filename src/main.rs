@@ -1,9 +1,9 @@
-mod help;
-mod init_config;
 mod app;
 mod fns;
+mod help;
+mod init_config;
 mod synths;
-use crate::app::{App, Mode, NormalCursor, VisualCursor, InsertCursor, Page};
+use crate::app::{App, InsertCursor, Mode, NormalCursor, Page, VisualCursor};
 #[cfg(feature = "sdl")]
 mod sdl_event;
 #[cfg(feature = "sdl")]
@@ -36,8 +36,6 @@ use std::{
     io::{Read, Write},
 };
 
-
-
 #[derive(Serialize, Deserialize)]
 struct JsonColor(String);
 
@@ -53,21 +51,21 @@ struct TableWithCells<'a> {
 
 impl Widget for TableWithCells<'_> {
     fn render(self, area: Rect, buf: &mut Buffer)
-where
+    where
         Self: Sized,
     {
-        let constr_col = Layout::horizontal(vec![
+        let constr_col = Layout::horizontal([
             Constraint::Max(1),
             Constraint::Min(1),
             Constraint::Max(1),
         ])
-            .split(area);
-        let constr_rows = Layout::vertical(vec![
+        .split(area);
+        let constr_rows = Layout::vertical([
             Constraint::Max(1),
             Constraint::Min(1),
             Constraint::Max(3),
         ])
-            .split(constr_col[1]);
+        .split(constr_col[1]);
         match self.app.page {
             Page::Sequencer => {
                 let temp_bound = self.app.count_bound(); //TODO: don't call this fn every time
@@ -76,14 +74,17 @@ where
                     .constraints(
                         [
                             vec![Constraint::Max(4)],
-                            vec![Constraint::Max(14); self.app.normal_cursor.x.saturating_sub(1) as usize],
+                            vec![
+                                Constraint::Max(14);
+                                self.app.normal_cursor.x.saturating_sub(1) as usize
+                            ],
                             vec![Constraint::Max(temp_bound as u16)],
                             vec![
                                 Constraint::Max(14);
                                 self.app.cols.len() - self.app.normal_cursor.x as usize - 1
                             ],
                         ]
-                            .concat(),
+                        .concat(),
                     )
                     .split(constr_rows[1]);
 
@@ -104,7 +105,8 @@ where
                         buf.set_span(
                             constr_col[1].x,
                             self.app.normal_cursor.y + constr_rows[1].y,
-                            &Span::from(" ".repeat(area.width as usize)).bg(self.app.theme["bg_highlight"]),
+                            &Span::from(" ".repeat(area.width as usize))
+                                .bg(self.app.theme["bg_highlight"]),
                             area.width - 2,
                         );
                     }
@@ -119,7 +121,7 @@ where
                         let curr_len = el.len();
                         let line_bound = if curr_len > 7 { 7 } else { curr_len };
                         let bounded_el = if (col_i == self.app.normal_cursor.x as usize)
-                        && (i == self.app.normal_cursor.y as usize)
+                            && (i == self.app.normal_cursor.y as usize)
                         {
                             &el[..]
                         } else {
@@ -144,21 +146,22 @@ where
                         for (ci, c) in bounded_el.iter().enumerate() {
                             let (cell_style, inside_style) = match self.app.current_mode {
                                 Mode::Visual
-                                if (i >= min_vy as usize && i <= max_vy as usize)
-                                && (col_i >= min_vx as usize && col_i <= max_vx as usize) =>
+                                    if (i >= min_vy as usize && i <= max_vy as usize)
+                                        && (col_i >= min_vx as usize
+                                            && col_i <= max_vx as usize) =>
                                 {
                                     (Modifier::REVERSED, Modifier::REVERSED)
                                 }
                                 Mode::Normal
-                                if (col_i == self.app.normal_cursor.x as usize
-                                && i == self.app.normal_cursor.y as usize) =>
+                                    if (col_i == self.app.normal_cursor.x as usize
+                                        && i == self.app.normal_cursor.y as usize) =>
                                 {
                                     (Modifier::REVERSED, Modifier::REVERSED)
                                 }
                                 Mode::Insert
-                                if (col_i == self.app.normal_cursor.x as usize
-                                && i == self.app.normal_cursor.y as usize
-                                && ci == self.app.insert_cursor.x as usize) =>
+                                    if (col_i == self.app.normal_cursor.x as usize
+                                        && i == self.app.normal_cursor.y as usize
+                                        && ci == self.app.insert_cursor.x as usize) =>
                                 {
                                     (Modifier::REVERSED, Modifier::default())
                                 }
@@ -198,43 +201,58 @@ where
                     }
                 }
             }
-            Page::Instrument{ id } => { 
-                match &self.app.instrs[id as usize] { 
-                    Some(instr) => {
-                        buf.set_span(1, 1, &Span::from(id.to_string()), 3);
-                        buf.set_span(5, 1, &Span::from(format!("name: {}", instr.name))
-                                .patch_style(match self.app.instr_cursor {
-                                    0 => Modifier::REVERSED,
-                                    _ => Modifier::default()
-                                }),
-                        14);
-                        match &instr.synth {
-                            synths::Synths::Rust { name, num, level, fn_symbol } => {
-                                buf.set_span(1, 2, &Span::from("type: rust")
-                                .patch_style(match self.app.instr_cursor {
-                                    1 => Modifier::REVERSED,
-                                    _ => Modifier::default()
-                                }),
-                                10);
-                            }
-                            synths::Synths::Macro { name, level } => {
-                                buf.set_span(1, 2, &Span::from("type: macro"), 11);
-                            }
+            Page::Instrument { id } => match &self.app.instrs[id as usize] {
+                Some(instr) => {
+                    buf.set_span(1, 1, &Span::from(id.to_string()), 3);
+                    buf.set_span(
+                        5,
+                        1,
+                        &Span::from(format!("name: {}", instr.name)).patch_style(
+                            match self.app.instr_cursor {
+                                0 => Modifier::REVERSED,
+                                _ => Modifier::default(),
+                            },
+                        ),
+                        14,
+                    );
+                    match &instr.synth {
+                        synths::Synths::Rust {
+                            name,
+                            num,
+                            level,
+                            fn_symbol,
+                        } => {
+                            buf.set_span(
+                                1,
+                                2,
+                                &Span::from("type: rust").patch_style(
+                                    match self.app.instr_cursor {
+                                        1 => Modifier::REVERSED,
+                                        _ => Modifier::default(),
+                                    },
+                                ),
+                                10,
+                            );
                         }
-                    },
-                        None => { 
-                        buf.set_span(1, 1, &Span::from(id.to_string()), 3);
-                        buf.set_span(5, 1, &Span::from("-".repeat(8)), 8);
-                                buf.set_span(1, 2, &Span::from("type: none")
-                                .patch_style(match self.app.instr_cursor {
-                                    1 => Modifier::REVERSED,
-                                    _ => Modifier::default()
-                                }),
-                                10);
-
+                        synths::Synths::Macro { name, level } => {
+                            buf.set_span(1, 2, &Span::from("type: macro"), 11);
+                        }
                     }
                 }
-            }
+                None => {
+                    buf.set_span(1, 1, &Span::from(id.to_string()), 3);
+                    buf.set_span(5, 1, &Span::from("-".repeat(8)), 8);
+                    buf.set_span(
+                        1,
+                        2,
+                        &Span::from("type: none").patch_style(match self.app.instr_cursor {
+                            1 => Modifier::REVERSED,
+                            _ => Modifier::default(),
+                        }),
+                        10,
+                    );
+                }
+            },
             Page::InsturmentList => {}
         }
     }
@@ -258,7 +276,6 @@ enum Commands {
     },
 }
 
-
 #[cfg(not(feature = "sdl"))]
 fn init_panic_hook() {
     use std::panic::{set_hook, take_hook};
@@ -276,9 +293,6 @@ fn restore_tui() -> std::io::Result<()> {
     stdout().execute(LeaveAlternateScreen)?;
     Ok(())
 }
-
-
-
 
 //fn sdl_event(app: &mut App) -> Result<()> {
 //for event in sdl_context.event_pump()?.poll_iter() {
@@ -335,7 +349,7 @@ fn start_app(working_file: &str) -> Result<()> {
     let mut terminal = Terminal::new(SdlBackend::new())?;
 
     terminal.clear()?;
-    
+
     // TODO: delete this and change lib type to Option<libloading::Library>
     use std::process::Stdio;
     let cur_dir = std::env::current_dir().unwrap();
@@ -428,7 +442,7 @@ fn start_app(working_file: &str) -> Result<()> {
         should_leave: false,
         x_active: false,
         lib: unsafe { Some(libloading::Library::new(lib_name).unwrap()) },
-        fx_fns: HashMap::new()
+        fx_fns: HashMap::new(),
     };
     let fn_status = String::new();
     // let full_path_file =

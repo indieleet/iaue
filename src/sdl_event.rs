@@ -5,6 +5,9 @@ use ratatui::prelude::*;
 use std::io;
 use crate::fns::*;
 use crate::app::App;
+
+const IOSEVKA: &[u8; 13065528] = core::include_bytes!("../IosevkaTermSlabNerdFontPropo-Regular.ttf");
+
 #[cfg(feature = "sdl")]
 pub struct SdlBackend {
     canvas: sdl2::render::Canvas<sdl2::video::Window>,
@@ -45,8 +48,9 @@ impl Backend for SdlBackend {
         I: Iterator<Item = (u16, u16, &'a buffer::Cell)>,
     {
         let ttf_context = &self.ttf_context;
+
         let mut font = ttf_context
-            .load_font("IosevkaTermSlabNerdFontPropo-Regular.ttf", 9)
+            .load_font_from_rwops(sdl2::rwops::RWops::from_bytes(IOSEVKA).unwrap(), 9)
             .unwrap();
         font.set_style(sdl2::ttf::FontStyle::NORMAL);
         let texture_creator = self.canvas.texture_creator();

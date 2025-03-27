@@ -17,6 +17,10 @@ TODO
 - [x] add init values for every row
 - [x] render file to wav
 - [x] fix render of cell
+- [x] add fxes on tracks
+- [x] add support for cargo dirs
+- [x] fix rows bounds
+    - [x] fix it in insert mode
 - [x] effects for notes
     - [x] 0: Layer new Notes relative to previous
     - [x] 1: Layer new note Additive
@@ -39,10 +43,6 @@ TODO
     - [x] 17: override current Duration to random
     - [x] 18: override current Velocity to random
     - [x] 19: override Frequency, Duration, Velocity to random
-- [x] add fxes on tracks
-- [x] add support for cargo dirs
-- [x] fix rows bounds
-    - [x] fix it in insert mode
 - [x] stereo
     - [ ] now add mono mode for better performance
 - [x] add sidechain
