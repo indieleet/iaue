@@ -1,3 +1,4 @@
+[![Build Status](https://github.com/indieleet/iaue/workflows/Rust/badge.svg)](https://github.com/indieleet/iaue/actions?workflow=Rust)
 # InteractiveAUdioEditor
 
 How to download && run
