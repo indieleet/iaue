@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use crate::synths::Synths;
 
 pub type FxFn<'lib> = Result<libloading::Symbol<'lib, libloading::Symbol<'lib, unsafe extern "C" fn(&[(f32, f32)], usize, &[f32], &[Vec<(f32, f32)>]) -> Vec<(f32, f32)>>>, libloading::Error>;
+pub type FnSymbol<'a> = libloading::Symbol<'a, libloading::Symbol<'a, unsafe extern "C" fn(f32, f32, f32, usize, &[f32]) -> Vec<(f32, f32)>>>;
 
 pub struct App<'a> {
     pub normal_cursor: NormalCursor,
@@ -29,7 +30,8 @@ pub struct App<'a> {
     pub is_help: bool,
     pub should_leave: bool,
     pub x_active: bool,
-    pub lib: Option<libloading::Library>
+    pub lib: Option<libloading::Library>,
+    //pub unique_fn: HashMap<usize, FnSymbol<'a>>
 }
 
 #[derive(Debug, Clone)]

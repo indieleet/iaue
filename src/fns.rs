@@ -1,6 +1,6 @@
-use crate::app::{App, Mode, Page, Instrument};
-use crate::synths::Synths;
+use crate::app::{App, Instrument, Mode, Page};
 use crate::help;
+use crate::synths::{Synths, WaveType};
 use ratatui::prelude::*;
 use std::io::{stdout, Result};
 use std::process::Stdio;
@@ -27,35 +27,96 @@ fn minmax_y(app: &App) -> (u16, u16) {
         (app.visual_cursor.y, app.normal_cursor.y)
     }
 }
+fn fn_op(current_sample: &mut f32, previous_sample: &mut f32, wave: WaveType, level: u8, feedback: u8, f: f32 ) {
+                let cycle_len = (44100. / f) as usize;
+                for el in (0..cycle_len).map(|it| (it as f32 / cycle_len as f32) * 2. - 1.) {
+                    match wave {
+                        WaveType::Sine => *current_sample = (el).sin(),
+                        _ => *current_sample = el,
+                    }
+                    *current_sample = *current_sample * (level as f32 / 255.)
+                        + *previous_sample * (feedback as f32 / 255.);
+                    *previous_sample = *current_sample;
+                }
+}
 
 type Sample = (f32, f32);
 fn apply_fn(app: &App, id: u8, f: f32, l: f32, v: f32, t: usize, p: &[f32]) -> Vec<Sample> {
     match &app.instrs[id as usize] {
-        Some(instr) => {
-            match &instr.synth {
-                Synths::Rust { name, num, level, fn_symbol } => {
+        Some(instr) => match &instr.synth {
+            Synths::Rust {
+                name,
+                num,
+                level,
+                fn_symbol,
+            } => unsafe {
+                let fn_get = app.lib.as_ref().unwrap().get::<libloading::Symbol<
+                    unsafe extern "C" fn(f32, f32, f32, usize, &[f32]) -> Vec<(f32, f32)>,
+                >>(
+                    ("f".to_string() + &num.to_string()).as_bytes(),
+                );
 
-                    unsafe {
-                        let fn_get = app.lib.as_ref().unwrap().get::<libloading::Symbol<
-                        unsafe extern "C" fn(f32, f32, f32, usize, &[f32]) -> Vec<(f32, f32)>,
-                        >>(("f".to_string() + &num.to_string()).as_bytes());
-                     
-                    if let Ok(inner_fn_symbol) = fn_get {
-                            inner_fn_symbol(f, l, v, t, p)
-                        }
-                    else {
-                        vec![(0.0, 0.0); (l * t as f32) as usize]
+                if let Ok(inner_fn_symbol) = fn_get {
+                    let level_mult = *level as f32 / 255.;
+                    inner_fn_symbol(f, l, v, t, p)
+                        .into_iter()
+                        .map(|(x, y)| (x * level_mult, y * level_mult))
+                        .collect()
+                } else {
+                    vec![(0.0, 0.0); (l * t as f32) as usize]
+                }
+            },
+            Synths::Macro {
+                name,
+                level,
+                engine,
+                par1,
+                par2,
+                par3,
+            } => {
+                vec![(0.0, 0.0); (l * t as f32) as usize]
+            }
+            Synths::Fm {
+                name: _,
+                level,
+                algo,
+                wave1,
+                wave2,
+                wave3,
+                wave4,
+                level1,
+                level2,
+                level3,
+                level4,
+                feedback1,
+                feedback2,
+                feedback3,
+                feedback4,
+            } => {
+                match *algo {
+                    _ => {}
+                }
+                let out = vec![(0.0, 0.0); (l * t as f32) as usize];
+                let time = (l * t as f32) as usize;
+                let mut current_sample1 = 0.;
+                let mut previous_sample1 = 0.;
+                let cycle_len = (44100. / f) as usize;
+                fn_op(&mut current_sample1, &mut previous_sample1, *wave1, *level1, *feedback1, f);
+                for el in (0..cycle_len).map(|it| (it as f32 / cycle_len as f32) * 2. - 1.) {
+                    match wave1 {
+                        WaveType::Sine => current_sample1 = (el).sin(),
+                        _ => current_sample1 = el,
                     }
-                    }
-
-                },
-                Synths::Macro { name, level } => { vec![(0.0, 0.0); (l * t as f32) as usize] },
+                    current_sample1 = current_sample1 * (*level1 as f32 / 255.)
+                        + previous_sample1 * (*feedback1 as f32 / 255.);
+                    previous_sample1 = current_sample1;
+                }
+                vec![(0.0, 0.0); (l * t as f32) as usize]
             }
         },
-        None => { 
+        None => {
             vec![(0.0, 0.0); (l * t as f32) as usize]
         }
-
     }
 }
 
@@ -117,6 +178,8 @@ fn build_lib<'a>(app: &'a mut App<'a>) {
     if comp_status.status.success() {
         unsafe {
             app.lib = Some(libloading::Library::new(lib_name).unwrap());
+            // TODO: store fn pointers in array
+            //
             //for i in 0..app.instrs.len() {
             //    match app.instrs[i] {
             //        Some(ref mut instr) => match instr.synth {
@@ -154,8 +217,8 @@ pub fn render(app: &mut App) -> Vec<f32> {
     //    }
     //}
     //
-   //let mut fns = std::collections::HashMap::new();
-   //let mut fxes_fns = std::collections::HashMap::new();
+    //let mut fns = std::collections::HashMap::new();
+    //let mut fxes_fns = std::collections::HashMap::new();
     fn f1(_f: f32, l: f32, _v: f32, t: usize, _p: &[f32]) -> Vec<(f32, f32)> {
         vec![(0.0, 0.0); (l * t as f32) as usize]
     }
@@ -450,11 +513,11 @@ pub fn render(app: &mut App) -> Vec<f32> {
                                     let out_tuple = apply_fn(
                                         app,
                                         el_iter
-                            .next()
-                            .unwrap_or(&Span::from("0"))
-                            .content
-                            .parse::<u8>()
-                            .unwrap_or(0),
+                                            .next()
+                                            .unwrap_or(&Span::from("0"))
+                                            .content
+                                            .parse::<u8>()
+                                            .unwrap_or(0),
                                         fs,
                                         ls / slice_param,
                                         vs,
@@ -496,19 +559,20 @@ pub fn render(app: &mut App) -> Vec<f32> {
                                 &[f32],
                                 &[Vec<(f32, f32)>],
                             ) -> Vec<(f32, f32)>,
-                    >>(("fx".to_string() + &fx.to_string()).as_bytes());
-                    match cur_fx {
-                        Ok(val) => {
-                            let out_tuple = 
-                            val(
-                                output[i].as_slice(),
-                                44100,
-                                fx_params[idx].as_slice(),
-                                output.as_slice(),
-                            );
-                            output[i] = out_tuple;
-                        }
-                        Err(_) => {}
+                        >>(
+                            ("fx".to_string() + &fx.to_string()).as_bytes(),
+                        );
+                        match cur_fx {
+                            Ok(val) => {
+                                let out_tuple = val(
+                                    output[i].as_slice(),
+                                    44100,
+                                    fx_params[idx].as_slice(),
+                                    output.as_slice(),
+                                );
+                                output[i] = out_tuple;
+                            }
+                            Err(_) => {}
                         }
                     }
                 }
@@ -898,7 +962,9 @@ pub fn move_down(app: &mut App) {
         (Mode::Command, Page::Sequencer) => {
             app.command_buf.push('j');
         }
-        (Mode::Normal | Mode::Insert, Page::Instrument { .. }) => { app.instr_cursor = app.instr_cursor.saturating_add(count as usize); }
+        (Mode::Normal | Mode::Insert, Page::Instrument { .. }) => {
+            app.instr_cursor = app.instr_cursor.saturating_add(count as usize);
+        }
         _ => {}
     }
     //app.normal_cursor.y = if new_y > app.y_bound - 1 { app.y_bound - 1 }
@@ -918,7 +984,9 @@ pub fn move_up(app: &mut App) {
         (Mode::Command, Page::Sequencer) => {
             app.command_buf.push('k');
         }
-        (Mode::Normal | Mode::Insert, Page::Instrument { .. }) => { app.instr_cursor = app.instr_cursor.saturating_sub(count as usize); }
+        (Mode::Normal | Mode::Insert, Page::Instrument { .. }) => {
+            app.instr_cursor = app.instr_cursor.saturating_sub(count as usize);
+        }
         _ => {}
     }
     //app.normal_cursor.y = app.normal_cursor.y.saturating_sub(count);
@@ -1317,8 +1385,17 @@ pub fn up_cell<const AMOUNT: i8>(app: &mut App) {
             }
         }
         (Mode::Insert | Mode::Normal, Page::Instrument { id }) => {
-            app.instrs[id as usize] = Some(Instrument { name: "synth", synth: Synths::Rust { name: "rust", num: 0, level: 1, fn_symbol: None }});}
-        (Mode::Normal | Mode::Visual | Mode::Command, ..) => {},
+            app.instrs[id as usize] = Some(Instrument {
+                name: "synth",
+                synth: Synths::Rust {
+                    name: "rust",
+                    num: 0,
+                    level: 1,
+                    fn_symbol: None,
+                },
+            });
+        }
+        (Mode::Normal | Mode::Visual | Mode::Command, ..) => {}
         _ => {}
     }
 }
@@ -1357,6 +1434,4 @@ pub fn change_page<const SIDE_IS_RIGHT: bool>(app: &mut App) {
     }
 }
 
-pub fn change_instr(app: &mut App, id: u8) {
-
-}
+pub fn change_instr(app: &mut App, id: u8) {}
