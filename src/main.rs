@@ -234,8 +234,11 @@ impl Widget for TableWithCells<'_> {
                                 10,
                             );
                         }
-                        synths::Synths::Macro { name, level } => {
+                        synths::Synths::Macro { name, level, engine, par1, par2, par3 } => {
                             buf.set_span(1, 2, &Span::from("type: macro"), 11);
+                        }
+                        synths::Synths::Fm { name, ..} => {
+                            buf.set_span(1, 2, &Span::from("type: fm"), 11);
                         }
                     }
                 }

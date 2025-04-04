@@ -12,6 +12,7 @@ use crossterm::terminal::{
 };
 use crossterm::ExecutableCommand;
 use std::process::Command;
+
 fn minmax_x(app: &App) -> (u16, u16) {
     if app.normal_cursor.x < app.visual_cursor.x {
         (app.normal_cursor.x, app.visual_cursor.x)
@@ -27,17 +28,16 @@ fn minmax_y(app: &App) -> (u16, u16) {
         (app.visual_cursor.y, app.normal_cursor.y)
     }
 }
-fn fn_op(current_sample: &mut f32, previous_sample: &mut f32, wave: WaveType, level: u8, feedback: u8, f: f32 ) {
-                let cycle_len = (44100. / f) as usize;
-                for el in (0..cycle_len).map(|it| (it as f32 / cycle_len as f32) * 2. - 1.) {
-                    match wave {
-                        WaveType::Sine => *current_sample = (el).sin(),
-                        _ => *current_sample = el,
-                    }
-                    *current_sample = *current_sample * (level as f32 / 255.)
-                        + *previous_sample * (feedback as f32 / 255.);
-                    *previous_sample = *current_sample;
-                }
+
+fn fn_op(current_sample: &mut f32, previous_sample: &mut f32, wave: WaveType, level: u8, feedback: u8, mod_index: f32) -> f32 {
+    match wave {
+        WaveType::Sine => *current_sample = (*current_sample + mod_index).sin(),
+        _ => {},
+    }
+    *current_sample = *current_sample * (level as f32 / 255.)
+        + *previous_sample * (feedback as f32 / 255.);
+    *previous_sample = *current_sample;
+    *current_sample
 }
 
 type Sample = (f32, f32);
@@ -45,7 +45,7 @@ fn apply_fn(app: &App, id: u8, f: f32, l: f32, v: f32, t: usize, p: &[f32]) -> V
     match &app.instrs[id as usize] {
         Some(instr) => match &instr.synth {
             Synths::Rust {
-                name,
+                name: _,
                 num,
                 level,
                 fn_symbol,
@@ -67,7 +67,7 @@ fn apply_fn(app: &App, id: u8, f: f32, l: f32, v: f32, t: usize, p: &[f32]) -> V
                 }
             },
             Synths::Macro {
-                name,
+                name: _,
                 level,
                 engine,
                 par1,
@@ -96,22 +96,30 @@ fn apply_fn(app: &App, id: u8, f: f32, l: f32, v: f32, t: usize, p: &[f32]) -> V
                 match *algo {
                     _ => {}
                 }
-                let out = vec![(0.0, 0.0); (l * t as f32) as usize];
                 let time = (l * t as f32) as usize;
-                let mut current_sample1 = 0.;
+                let mut out: Vec<(f32, f32)> = Vec::with_capacity(time);
+                let mut current_sample1;
                 let mut previous_sample1 = 0.;
+                let mut current_sample2;
+                let mut previous_sample2 = 0.;
+                let mut current_sample3;
+                let mut previous_sample3 = 0.;
+                let mut current_sample4;
+                let mut previous_sample4 = 0.;
                 let cycle_len = (44100. / f) as usize;
-                fn_op(&mut current_sample1, &mut previous_sample1, *wave1, *level1, *feedback1, f);
-                for el in (0..cycle_len).map(|it| (it as f32 / cycle_len as f32) * 2. - 1.) {
-                    match wave1 {
-                        WaveType::Sine => current_sample1 = (el).sin(),
-                        _ => current_sample1 = el,
-                    }
-                    current_sample1 = current_sample1 * (*level1 as f32 / 255.)
-                        + previous_sample1 * (*feedback1 as f32 / 255.);
-                    previous_sample1 = current_sample1;
+                for el in 0..time { 
+                //for el in (0..cycle_len).map(|it| (it as f32 / cycle_len as f32) * 2. - 1.) {
+                    current_sample1 = (el & cycle_len) as f32 / cycle_len as f32 * 2. - 1.;
+                    let mod1 = fn_op(&mut current_sample1, &mut previous_sample1, *wave1, *level1, *feedback1, 0.);
+                    current_sample2 = (el & cycle_len) as f32 / cycle_len as f32 * 2. - 1.;
+                    let mod2 = fn_op(&mut current_sample2, &mut previous_sample2, *wave2, *level2, *feedback2, mod1);
+                    current_sample3 = (el & cycle_len) as f32 / cycle_len as f32 * 2. - 1.;
+                    let mod3 = fn_op(&mut current_sample3, &mut previous_sample3, *wave3, *level3, *feedback3, mod2);
+                    current_sample4 = (el & cycle_len) as f32 / cycle_len as f32 * 2. - 1.;
+                    let out_sample = fn_op(&mut current_sample4, &mut previous_sample4, *wave4, *level4, *feedback4, mod3);
+                    out.push((out_sample * (*level as f32 / 255.), out_sample * (*level as f32 / 255.)));
                 }
-                vec![(0.0, 0.0); (l * t as f32) as usize]
+                out
             }
         },
         None => {
