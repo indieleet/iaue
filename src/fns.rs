@@ -29,13 +29,27 @@ fn minmax_y(app: &App) -> (u16, u16) {
     }
 }
 
-fn fn_op(current_sample: &mut f32, previous_sample: &mut f32, wave: WaveType, level: u8, feedback: u8, mod_index1: f32, mod_index2: f32, mod_index3: f32) -> f32 {
+fn fn_op(
+    current_sample: &mut f32,
+    previous_sample: &mut f32,
+    wave: WaveType,
+    level: u8,
+    feedback: u8,
+    mod_index1: f32,
+    mod_index2: f32,
+    mod_index3: f32,
+) -> f32 {
     match wave {
-        WaveType::Sine => *current_sample = ((*current_sample + mod_index1 + mod_index2 + mod_index3) * 2. * core::f32::consts::PI).sin(),
-        _ => {},
+        WaveType::Sine => {
+            *current_sample = ((*current_sample + mod_index1 + mod_index2 + mod_index3)
+                * 2.
+                * core::f32::consts::PI)
+                .sin()
+        }
+        _ => {}
     }
-    *current_sample = *current_sample * (level as f32 / 255.)
-        + *previous_sample * (feedback as f32 / 255.);
+    *current_sample =
+        *current_sample * (level as f32 / 255.) + *previous_sample * (feedback as f32 / 255.);
     *previous_sample = *current_sample;
     *current_sample
 }
@@ -92,6 +106,18 @@ fn apply_fn(app: &App, id: u8, f: f32, l: f32, v: f32, t: usize, p: &[f32]) -> V
                 feedback2,
                 feedback3,
                 feedback4,
+                num1,
+                num2,
+                num3,
+                num4,
+                den1,
+                den2,
+                den3,
+                den4,
+                detune1,
+                detune2,
+                detune3,
+                detune4,
             } => {
                 match *algo {
                     _ => {}
@@ -106,20 +132,65 @@ fn apply_fn(app: &App, id: u8, f: f32, l: f32, v: f32, t: usize, p: &[f32]) -> V
                 let mut previous_sample3 = 0.;
                 let mut current_sample4;
                 let mut previous_sample4 = 0.;
-                let cycle_len = (44100. / f) as usize;
-                let f1 = f * num1 as f32 / den1 as f32;
-                let cycle_len1 = (44100. / (f * num1 as f32 / den1 as f32) * 2f32.pow(detune as f32 / 128)) as usize;
-                for el in 0..time { 
-                //for el in (0..cycle_len).map(|it| (it as f32 / cycle_len as f32) * 2. - 1.) {
-                    current_sample1 = (el & cycle_len) as f32 / cycle_len as f32 * 2. - 1.;
-                    let mod1 = fn_op(&mut current_sample1, &mut previous_sample1, *wave1, *level1, *feedback1, 0., 0., 0.);
-                    current_sample2 = (el & cycle_len) as f32 / cycle_len as f32 * 2. - 1.;
-                    let mod2 = fn_op(&mut current_sample2, &mut previous_sample2, *wave2, *level2, *feedback2, mod1, 0., 0.);
-                    current_sample3 = (el & cycle_len) as f32 / cycle_len as f32 * 2. - 1.;
-                    let mod3 = fn_op(&mut current_sample3, &mut previous_sample3, *wave3, *level3, *feedback3, mod1, mod2, 0.);
-                    current_sample4 = (el & cycle_len) as f32 / cycle_len as f32 * 2. - 1.;
-                    let out_sample = fn_op(&mut current_sample4, &mut previous_sample4, *wave4, *level4, *feedback4, mod1, mod2, mod3);
-                    out.push((out_sample * (*level as f32 / 255.), out_sample * (*level as f32 / 255.)));
+                //let cycle_len = (44100. / f) as usize;
+                let f1 = (f * *num1 as f32 / *den1 as f32) * 2f32.powf(*detune1 as f32 / 128.);
+                let cycle_len1 = (44100. / f1) as usize;
+                let f2 = (f * *num2 as f32 / *den2 as f32) * 2f32.powf(*detune2 as f32 / 128.);
+                let cycle_len2 = (44100. / f2) as usize;
+                let f3 = (f * *num3 as f32 / *den3 as f32) * 2f32.powf(*detune3 as f32 / 128.);
+                let cycle_len3 = (44100. / f3) as usize;
+                let f4 = (f * *num4 as f32 / *den4 as f32) * 2f32.powf(*detune4 as f32 / 128.);
+                let cycle_len4 = (44100. / f4) as usize;
+                for el in 0..time {
+                    //for el in (0..cycle_len).map(|it| (it as f32 / cycle_len as f32) * 2. - 1.) {
+                    current_sample1 = (el & cycle_len1) as f32 / cycle_len1 as f32 * 2. - 1.;
+                    let mod1 = fn_op(
+                        &mut current_sample1,
+                        &mut previous_sample1,
+                        *wave1,
+                        *level1,
+                        *feedback1,
+                        0.,
+                        0.,
+                        0.,
+                    );
+                    current_sample2 = (el & cycle_len2) as f32 / cycle_len2 as f32 * 2. - 1.;
+                    let mod2 = fn_op(
+                        &mut current_sample2,
+                        &mut previous_sample2,
+                        *wave2,
+                        *level2,
+                        *feedback2,
+                        mod1,
+                        0.,
+                        0.,
+                    );
+                    current_sample3 = (el & cycle_len3) as f32 / cycle_len3 as f32 * 2. - 1.;
+                    let mod3 = fn_op(
+                        &mut current_sample3,
+                        &mut previous_sample3,
+                        *wave3,
+                        *level3,
+                        *feedback3,
+                        mod1,
+                        mod2,
+                        0.,
+                    );
+                    current_sample4 = (el & cycle_len4) as f32 / cycle_len4 as f32 * 2. - 1.;
+                    let out_sample = fn_op(
+                        &mut current_sample4,
+                        &mut previous_sample4,
+                        *wave4,
+                        *level4,
+                        *feedback4,
+                        mod1,
+                        mod2,
+                        mod3,
+                    );
+                    out.push((
+                        out_sample * (*level as f32 / 255.),
+                        out_sample * (*level as f32 / 255.),
+                    ));
                 }
                 out
             }
@@ -1444,4 +1515,39 @@ pub fn change_page<const SIDE_IS_RIGHT: bool>(app: &mut App) {
     }
 }
 
-pub fn change_instr(app: &mut App, id: u8) {}
+pub fn change_instr<const SIDE_IS_RIGHT: bool>(app: &mut App, id: u8) {
+    match (&mut app.instrs[id as usize], SIDE_IS_RIGHT) {
+        (Some(Instrument { name, synth: Synths::Rust { .. } } ), true) => {
+            app.instrs[id as usize] = Some(Instrument { name, synth: Synths::Fm { 
+        name: "",
+        level: 255,
+        algo: 0,
+        wave1: WaveType::Sine,
+        wave2: WaveType::Sine,
+        wave3: WaveType::Sine,
+        wave4: WaveType::Sine,
+        level1: 255,
+        level2: 255,
+        level3: 255,
+        level4: 255,
+        feedback1: 10,
+        feedback2: 10,
+        feedback3: 10,
+        feedback4: 10,
+        num1: 1,
+        num2: 1,
+        num3: 1,
+        num4: 1,
+        den1: 1,
+        den2: 1,
+        den3: 1,
+        den4: 1,
+        detune1: 0,
+        detune2: 0,
+        detune3: 0,
+        detune4: 0
+            } })
+        }
+    _ => {}
+    }
+}

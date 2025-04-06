@@ -4,7 +4,7 @@ use ratatui::style::Color;
 use ratatui::prelude::*;
 use std::io;
 use crate::fns::*;
-use crate::app::App;
+use crate::app::{App, Page};
 
 const IOSEVKA: &[u8; 13065528] = core::include_bytes!("../IosevkaTermSlabNerdFontPropo-Regular.ttf");
 
@@ -137,93 +137,103 @@ pub fn sdl_event(app: &mut App, terminal: &mut Terminal<SdlBackend>) {
     app.y_bound = app.cols[app.normal_cursor.x as usize].len() as u16;
     for event in sdl_context.event_pump().unwrap().poll_iter() {
         use sdl2::event::Event;
-        match event {
-            Event::Quit { .. }
+        match (event, app.page) {
+(Event::Quit { .. }
             | Event::KeyDown {
                 keycode: Some(sdl2::keyboard::Keycode::Escape),
                 ..
-            } => {
+            }, _) => {
                 app.should_leave = true;
                 break;
             }
-            Event::KeyDown {
+            (Event::KeyDown {
                 keycode: Some(sdl2::keyboard::Keycode::X),
                 keymod: sdl2::keyboard::Mod::NOMOD,
                 ..
-            } => app.x_active = true,
-            Event::KeyUp {
+            }, _) => app.x_active = true,
+            (Event::KeyUp {
                 keycode: Some(sdl2::keyboard::Keycode::X),
                 ..
-            } => app.x_active = false,
-            Event::KeyDown {
+            }, _) => app.x_active = false,
+            (Event::KeyDown {
                 keycode: Some(sdl2::keyboard::Keycode::Left),
                 keymod: sdl2::keyboard::Mod::LSHIFTMOD,
                 ..
-            } => change_page::<false>(app),
-            Event::KeyDown {
+            }, Page::Instrument { id }) => change_instr::<false>(app, id),
+            (Event::KeyDown {
                 keycode: Some(sdl2::keyboard::Keycode::Right),
                 keymod: sdl2::keyboard::Mod::LSHIFTMOD,
                 ..
-            } => change_page::<true>(app),
-            Event::KeyDown {
+            }, Page::Instrument { id }) => change_instr::<true>(app, id),
+            (Event::KeyDown {
+                keycode: Some(sdl2::keyboard::Keycode::Left),
+                keymod: sdl2::keyboard::Mod::LSHIFTMOD,
+                ..
+            }, _) => change_page::<false>(app),
+            (Event::KeyDown {
+                keycode: Some(sdl2::keyboard::Keycode::Right),
+                keymod: sdl2::keyboard::Mod::LSHIFTMOD,
+                ..
+            }, _) => change_page::<true>(app),
+            (Event::KeyDown {
                 keycode: Some(sdl2::keyboard::Keycode::X),
                 keymod: sdl2::keyboard::Mod::LSHIFTMOD,
                 ..
-            } => paste_down(app),
-            Event::KeyDown {
+            }, _) => paste_down(app),
+            (Event::KeyDown {
                 keycode: Some(sdl2::keyboard::Keycode::Up),
                 ..
-            } => match app.x_active {
+            }, _) => match app.x_active {
                 true => up_cell::<10>(app),
                 false => move_up(app),
             }
-            Event::KeyDown {
+            (Event::KeyDown {
                 keycode: Some(sdl2::keyboard::Keycode::Down),
                 ..
-            } => match app.x_active {
+            }, _) => match app.x_active {
                 true => up_cell::<-10>(app),
                 false => move_down(app),
             }
-            Event::KeyDown {
+            (Event::KeyDown {
                 keycode: Some(sdl2::keyboard::Keycode::Left),
                 ..
-            } => match app.x_active {
+            }, _) => match app.x_active {
                 true => up_cell::<-1>(app),
                 false => move_left(app),
             }
-            Event::KeyDown {
+            (Event::KeyDown {
                 keycode: Some(sdl2::keyboard::Keycode::Right),
                 ..
-            } => match app.x_active {
+            }, _) => match app.x_active {
                 true => up_cell::<1>(app),
                 false => move_right(app),
             }
 
-            Event::KeyDown {
+            (Event::KeyDown {
                 keycode: Some(sdl2::keyboard::Keycode::Home),
                 ..
-            } => goto_start(app),
-            Event::KeyDown {
+            }, _) => goto_start(app),
+            (Event::KeyDown {
                 keycode: Some(sdl2::keyboard::Keycode::End),
                 ..
-            } => goto_end(app),
-            Event::KeyDown {
+            }, _) => goto_end(app),
+            (Event::KeyDown {
                 keycode: Some(sdl2::keyboard::Keycode::Space),
                 ..
-            } => child_render(app),
-            Event::KeyDown {
+            }, _) => child_render(app),
+            (Event::KeyDown {
                 keycode: Some(sdl2::keyboard::Keycode::Z),
                 keymod: sdl2::keyboard::Mod::LSHIFTMOD,
                 ..
-            } => enter_visual_mode(app),
-            Event::KeyDown {
+            }, _) => enter_visual_mode(app),
+            (Event::KeyDown {
                 keycode: Some(sdl2::keyboard::Keycode::E),
                 ..
-            } => enter_insert_mode(app),
-            Event::KeyDown {
+            }, _) => enter_insert_mode(app),
+            (Event::KeyDown {
                 keycode: Some(sdl2::keyboard::Keycode::Z),
                 ..
-            } => match app.x_active { 
+            }, _) => match app.x_active { 
                 true => remove_line(app),
                 false => yank(app),
             }

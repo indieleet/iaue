@@ -12,6 +12,14 @@ pub enum WaveType {
     Triangle,
 }
 
+impl core::fmt::Display for WaveType {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            WaveType::Sine => { write!(f, "Sine") }
+            _ => { write!(f, "Other") }
+        }
+    }
+}
 #[derive(Debug, Clone)]
 pub enum Synths<'a> {
     Rust {
@@ -35,7 +43,19 @@ pub enum Synths<'a> {
         feedback1: u8,
         feedback2: u8,
         feedback3: u8,
-        feedback4: u8
+        feedback4: u8,
+        num1: u8,
+        num2: u8,
+        num3: u8,
+        num4: u8,
+        den1: u8,
+        den2: u8,
+        den3: u8,
+        den4: u8,
+        detune1: i8,
+        detune2: i8,
+        detune3: i8,
+        detune4: i8
     },
     Macro {
         name: &'a str,
