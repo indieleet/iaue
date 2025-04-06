@@ -29,9 +29,9 @@ fn minmax_y(app: &App) -> (u16, u16) {
     }
 }
 
-fn fn_op(current_sample: &mut f32, previous_sample: &mut f32, wave: WaveType, level: u8, feedback: u8, mod_index: f32) -> f32 {
+fn fn_op(current_sample: &mut f32, previous_sample: &mut f32, wave: WaveType, level: u8, feedback: u8, mod_index1: f32, mod_index2: f32, mod_index3: f32) -> f32 {
     match wave {
-        WaveType::Sine => *current_sample = (*current_sample + mod_index).sin(),
+        WaveType::Sine => *current_sample = ((*current_sample + mod_index1 + mod_index2 + mod_index3) * 2. * core::f32::consts::PI).sin(),
         _ => {},
     }
     *current_sample = *current_sample * (level as f32 / 255.)
@@ -107,16 +107,18 @@ fn apply_fn(app: &App, id: u8, f: f32, l: f32, v: f32, t: usize, p: &[f32]) -> V
                 let mut current_sample4;
                 let mut previous_sample4 = 0.;
                 let cycle_len = (44100. / f) as usize;
+                let f1 = f * num1 as f32 / den1 as f32;
+                let cycle_len1 = (44100. / (f * num1 as f32 / den1 as f32) * 2f32.pow(detune as f32 / 128)) as usize;
                 for el in 0..time { 
                 //for el in (0..cycle_len).map(|it| (it as f32 / cycle_len as f32) * 2. - 1.) {
                     current_sample1 = (el & cycle_len) as f32 / cycle_len as f32 * 2. - 1.;
-                    let mod1 = fn_op(&mut current_sample1, &mut previous_sample1, *wave1, *level1, *feedback1, 0.);
+                    let mod1 = fn_op(&mut current_sample1, &mut previous_sample1, *wave1, *level1, *feedback1, 0., 0., 0.);
                     current_sample2 = (el & cycle_len) as f32 / cycle_len as f32 * 2. - 1.;
-                    let mod2 = fn_op(&mut current_sample2, &mut previous_sample2, *wave2, *level2, *feedback2, mod1);
+                    let mod2 = fn_op(&mut current_sample2, &mut previous_sample2, *wave2, *level2, *feedback2, mod1, 0., 0.);
                     current_sample3 = (el & cycle_len) as f32 / cycle_len as f32 * 2. - 1.;
-                    let mod3 = fn_op(&mut current_sample3, &mut previous_sample3, *wave3, *level3, *feedback3, mod2);
+                    let mod3 = fn_op(&mut current_sample3, &mut previous_sample3, *wave3, *level3, *feedback3, mod1, mod2, 0.);
                     current_sample4 = (el & cycle_len) as f32 / cycle_len as f32 * 2. - 1.;
-                    let out_sample = fn_op(&mut current_sample4, &mut previous_sample4, *wave4, *level4, *feedback4, mod3);
+                    let out_sample = fn_op(&mut current_sample4, &mut previous_sample4, *wave4, *level4, *feedback4, mod1, mod2, mod3);
                     out.push((out_sample * (*level as f32 / 255.), out_sample * (*level as f32 / 255.)));
                 }
                 out
