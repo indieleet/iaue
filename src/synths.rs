@@ -20,6 +20,7 @@ impl core::fmt::Display for WaveType {
         }
     }
 }
+
 #[derive(Debug, Clone)]
 pub enum Synths<'a> {
     Rust {

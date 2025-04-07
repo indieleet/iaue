@@ -1407,6 +1407,7 @@ pub fn toggle_help(app: &mut App) {
         Mode::Command => {}
     }
 }
+
 pub fn child_render(app: &mut App) {
     let out_vec = render(app);
     let max_len = out_vec.len();
@@ -1466,15 +1467,7 @@ pub fn up_cell<const AMOUNT: i8>(app: &mut App) {
             }
         }
         (Mode::Insert | Mode::Normal, Page::Instrument { id }) => {
-            app.instrs[id as usize] = Some(Instrument {
-                name: "synth",
-                synth: Synths::Rust {
-                    name: "rust",
-                    num: 0,
-                    level: 1,
-                    fn_symbol: None,
-                },
-            });
+            change_instr::<AMOUNT>(app, id);
         }
         (Mode::Normal | Mode::Visual | Mode::Command, ..) => {}
         _ => {}
@@ -1515,39 +1508,79 @@ pub fn change_page<const SIDE_IS_RIGHT: bool>(app: &mut App) {
     }
 }
 
-pub fn change_instr<const SIDE_IS_RIGHT: bool>(app: &mut App, id: u8) {
-    match (&mut app.instrs[id as usize], SIDE_IS_RIGHT) {
-        (Some(Instrument { name, synth: Synths::Rust { .. } } ), true) => {
-            app.instrs[id as usize] = Some(Instrument { name, synth: Synths::Fm { 
-        name: "",
-        level: 255,
-        algo: 0,
-        wave1: WaveType::Sine,
-        wave2: WaveType::Sine,
-        wave3: WaveType::Sine,
-        wave4: WaveType::Sine,
-        level1: 255,
-        level2: 255,
-        level3: 255,
-        level4: 255,
-        feedback1: 10,
-        feedback2: 10,
-        feedback3: 10,
-        feedback4: 10,
-        num1: 1,
-        num2: 1,
-        num3: 1,
-        num4: 1,
-        den1: 1,
-        den2: 1,
-        den3: 1,
-        den4: 1,
-        detune1: 0,
-        detune2: 0,
-        detune3: 0,
-        detune4: 0
-            } })
+pub fn change_instr<const AMOUNT: i8>(app: &mut App, id: u8) {
+    match (&mut app.instrs[id as usize], AMOUNT) {
+        (
+            Some(Instrument {
+                name,
+                synth: Synths::Rust { .. },
+            }),
+            1,
+        ) => {
+            app.instrs[id as usize] = Some(Instrument {
+                name,
+                synth: Synths::Fm {
+                    name: "",
+                    level: 255,
+                    algo: 0,
+                    wave1: WaveType::Sine,
+                    wave2: WaveType::Sine,
+                    wave3: WaveType::Sine,
+                    wave4: WaveType::Sine,
+                    level1: 255,
+                    level2: 255,
+                    level3: 255,
+                    level4: 255,
+                    feedback1: 10,
+                    feedback2: 10,
+                    feedback3: 10,
+                    feedback4: 10,
+                    num1: 1,
+                    num2: 1,
+                    num3: 1,
+                    num4: 1,
+                    den1: 1,
+                    den2: 1,
+                    den3: 1,
+                    den4: 1,
+                    detune1: 0,
+                    detune2: 0,
+                    detune3: 0,
+                    detune4: 0,
+                },
+            })
         }
-    _ => {}
+        (
+            Some(Instrument {
+                name,
+                synth: Synths::Fm { .. },
+            }),
+            -1,
+        ) => {
+            app.instrs[id as usize] = Some(Instrument {
+                name,
+                synth: Synths::Rust {
+                    name: "rust",
+                    num: 0,
+                    level: 1,
+                    fn_symbol: None,
+                },
+            })
+        }
+        (
+            None,
+            1,
+        ) => {
+            app.instrs[id as usize] = Some(Instrument {
+                name: "",
+                synth: Synths::Rust {
+                    name: "rust",
+                    num: 0,
+                    level: 1,
+                    fn_symbol: None,
+                },
+            })
+        }
+        _ => {}
     }
 }
