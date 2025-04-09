@@ -353,7 +353,8 @@ pub fn render(app: &mut App) -> Vec<f32> {
                             .unwrap_or(&Span::from("0"))
                             .content
                             .to_string()
-                            .parse::<usize>();
+                            .parse::<usize>()
+                        .unwrap_or(0);
                         let mut note_repeat = 1;
                         let mut slice_param = 1.0;
                         let mut fx_params_slice = Vec::new();
@@ -589,16 +590,18 @@ pub fn render(app: &mut App) -> Vec<f32> {
                         (fs, ls, vs) = (new_f, new_l, new_v);
                         let mut temp_vec: Vec<Vec<(f32, f32)>> = Vec::new();
                         for (fs, ls, vs) in pushed_args {
-                            match pushed_fn {
-                                Ok(val) => {
+                        //    match pushed_fn {
+                        //        Ok(val)( => {
+                            let def_val = &Span::from("0");
+                            let new_el = &el_iter.next().unwrap_or(def_val).content;
+                            println!("{}", new_el);
+                            
                                     let out_tuple = apply_fn(
                                         app,
-                                        el_iter
-                                            .next()
-                                            .unwrap_or(&Span::from("0"))
-                                            .content
-                                            .parse::<u8>()
-                                            .unwrap_or(0),
+                                pushed_fn as u8,
+                             //   new_el
+                             //               .parse::<u8>()
+                             //               .unwrap_or(0),
                                         fs,
                                         ls / slice_param,
                                         vs,
@@ -606,18 +609,18 @@ pub fn render(app: &mut App) -> Vec<f32> {
                                         fx_params_slice.as_slice(),
                                     );
                                     temp_vec.push(out_tuple);
-                                }
-                                Err(_) => {
-                                    let out_tuple = f1(
-                                        fs,
-                                        ls / slice_param,
-                                        vs,
-                                        44100,
-                                        fx_params_slice.as_slice(),
-                                    );
-                                    temp_vec.push(out_tuple);
-                                }
-                            }
+                        //        }
+                        //        Err(_) => {
+                        //            let out_tuple = f1(
+                        //                fs,
+                        //                ls / slice_param,
+                        //                vs,
+                        //                44100,
+                        //                fx_params_slice.as_slice(),
+                        //            );
+                        //            temp_vec.push(out_tuple);
+                        //        }
+                            //}
                         }
                         let len_of_note = temp_vec[0].len();
                         let mut sum_vec = vec![(0.0, 0.0); len_of_note];
@@ -670,6 +673,8 @@ pub fn render(app: &mut App) -> Vec<f32> {
             //fn_status = format!("{}, {}, {}, {}", ft, lt, vt, (max_len / 44100) as f32);
         }
     }
+    app.command_buf.clear();
+    app.command_buf = format!("{:?}", &out_vec);
     out_vec
         .iter()
         .map(|&(it, y)| {
@@ -696,6 +701,7 @@ pub fn render(app: &mut App) -> Vec<f32> {
         })
         .flat_map(|(x, y)| [x, y])
         .collect::<Vec<_>>()
+
 }
 
 pub fn render_and_save_file(app: &mut App, file_name: String) {
