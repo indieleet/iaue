@@ -46,6 +46,16 @@ fn fn_op(
                 * core::f32::consts::PI)
                 .sin()
         }
+
+        WaveType::Saw => {
+            *current_sample = (*current_sample + mod_index1 + mod_index2 + mod_index3) % 1.;
+        }
+
+        WaveType::Square => 
+        {
+            *current_sample = (*current_sample + mod_index1 + mod_index2 + mod_index3);
+            *current_sample = if *current_sample >= 0. { 1.0 } else { -1.0 };
+        }
         _ => {}
     }
     *current_sample =
@@ -118,6 +128,9 @@ fn apply_fn(app: &App, id: u8, f: f32, l: f32, v: f32, t: usize, p: &[f32]) -> V
                 detune2,
                 detune3,
                 detune4,
+                lfo_type1,
+                lfo_speed1,
+                lfo_dest1
             } => {
                 match *algo {
                     _ => {}
@@ -1553,6 +1566,9 @@ pub fn change_instr<const AMOUNT: i8>(app: &mut App, id: u8) {
                     detune2: 0,
                     detune3: 0,
                     detune4: 0,
+                    lfo_type1: WaveType::Sine,
+                    lfo_speed1: 1.,
+                    lfo_dest1: 0
                 },
             })
         }

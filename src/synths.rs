@@ -56,7 +56,10 @@ pub enum Synths<'a> {
         detune1: i8,
         detune2: i8,
         detune3: i8,
-        detune4: i8
+        detune4: i8,
+        lfo_type1: WaveType,
+        lfo_speed1: f32,
+        lfo_dest1: u8
     },
     Macro {
         name: &'a str,
