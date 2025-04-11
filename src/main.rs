@@ -266,9 +266,7 @@ impl Widget for TableWithCells<'_> {
                             detune2,
                             detune3,
                             detune4,
-                            lfo_type1,
-                            lfo_speed1,
-                            lfo_dest1
+                            lfo1
                         } => {
                             buf.set_span(
                                 1,

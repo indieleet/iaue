@@ -1,6 +1,6 @@
 use crate::app::{App, Instrument, Mode, Page};
 use crate::help;
-use crate::synths::{Synths, WaveType};
+use crate::synths::{Synths, WaveType, Lfo, Operator, FMModDest};
 use ratatui::prelude::*;
 use std::io::{stdout, Result};
 use std::process::Stdio;
@@ -128,9 +128,7 @@ fn apply_fn(app: &App, id: u8, f: f32, l: f32, v: f32, t: usize, p: &[f32]) -> V
                 detune2,
                 detune3,
                 detune4,
-                lfo_type1,
-                lfo_speed1,
-                lfo_dest1
+                lfo1
             } => {
                 match *algo {
                     _ => {}
@@ -1566,9 +1564,7 @@ pub fn change_instr<const AMOUNT: i8>(app: &mut App, id: u8) {
                     detune2: 0,
                     detune3: 0,
                     detune4: 0,
-                    lfo_type1: WaveType::Sine,
-                    lfo_speed1: 1.,
-                    lfo_dest1: 0
+                    lfo1: Lfo { ..Default::default() }
                 },
             })
         }

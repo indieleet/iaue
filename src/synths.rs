@@ -12,11 +12,51 @@ pub enum WaveType {
     Triangle,
 }
 
+#[derive(Debug, Clone, Copy, Default)]
+pub struct Lfo {
+    pub wave: WaveType,
+    pub dest: FMModDest,
+    pub speed: f32,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct Operator {
+    pub wave: WaveType,
+    pub level: u8,
+    pub feedback: u8,
+    pub num: u8,
+    pub den: u8,
+    pub detune: i8,
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+pub enum FMModDest {
+    #[default]
+    Level = 0,
+    Pitch = 1,
+    Level1 = 2,
+    Level2 = 3,
+    Level3 = 4,
+    Level4 = 5,
+    Pitch1 = 6,
+    Pitch2 = 7,
+    Pitch3 = 8,
+    Pitch4 = 9,
+    Feedback1 = 10,
+    Feedback2 = 11,
+    Feedback3 = 12,
+    Feedback4 = 13,
+}
+
 impl core::fmt::Display for WaveType {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            WaveType::Sine => { write!(f, "Sine") }
-            _ => { write!(f, "Other") }
+            WaveType::Sine => {
+                write!(f, "Sine")
+            }
+            _ => {
+                write!(f, "Other")
+            }
         }
     }
 }
@@ -57,9 +97,7 @@ pub enum Synths<'a> {
         detune2: i8,
         detune3: i8,
         detune4: i8,
-        lfo_type1: WaveType,
-        lfo_speed1: f32,
-        lfo_dest1: u8
+        lfo1: Lfo,
     },
     Macro {
         name: &'a str,
@@ -67,6 +105,6 @@ pub enum Synths<'a> {
         engine: u8,
         par1: u8,
         par2: u8,
-        par3: u8
+        par3: u8,
     },
 }
