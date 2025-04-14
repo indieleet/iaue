@@ -29,6 +29,19 @@ pub struct Operator {
     pub detune: i8,
 }
 
+impl core::default::Default for Operator {
+    fn default() -> Self {
+        Operator {
+            wave: WaveType::Sine,
+            level: 255,
+            feedback: 0,
+            num: 1,
+            den: 1,
+            detune: 0,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, Default)]
 pub enum FMModDest {
     #[default]
@@ -73,30 +86,10 @@ pub enum Synths<'a> {
         name: &'a str,
         level: u8,
         algo: u8,
-        wave1: WaveType,
-        wave2: WaveType,
-        wave3: WaveType,
-        wave4: WaveType,
-        level1: u8,
-        level2: u8,
-        level3: u8,
-        level4: u8,
-        feedback1: u8,
-        feedback2: u8,
-        feedback3: u8,
-        feedback4: u8,
-        num1: u8,
-        num2: u8,
-        num3: u8,
-        num4: u8,
-        den1: u8,
-        den2: u8,
-        den3: u8,
-        den4: u8,
-        detune1: i8,
-        detune2: i8,
-        detune3: i8,
-        detune4: i8,
+        op1: Operator,
+        op2: Operator,
+        op3: Operator,
+        op4: Operator,
         lfo1: Lfo,
     },
     Macro {
