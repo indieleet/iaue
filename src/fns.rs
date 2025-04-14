@@ -1,6 +1,6 @@
 use crate::app::{App, Instrument, Mode, Page};
 use crate::help;
-use crate::synths::{Synths, WaveType, Lfo, Operator, FMModDest};
+use crate::synths::{FMModDest, Lfo, Operator, Synths, WaveType};
 use ratatui::prelude::*;
 use std::io::{stdout, Result};
 use std::process::Stdio;
@@ -51,8 +51,7 @@ fn fn_op(
             *current_sample = (*current_sample + mod_index1 + mod_index2 + mod_index3) % 1.;
         }
 
-        WaveType::Square => 
-        {
+        WaveType::Square => {
             *current_sample = *current_sample + mod_index1 + mod_index2 + mod_index3;
             *current_sample = if *current_sample >= 0. { 1.0 } else { -1.0 };
         }
@@ -108,7 +107,7 @@ fn apply_fn(app: &App, id: u8, f: f32, l: f32, v: f32, t: usize, p: &[f32]) -> V
                 op2,
                 op3,
                 op4,
-                lfo1
+                lfo1,
             } => {
                 match *algo {
                     _ => {}
@@ -124,13 +123,17 @@ fn apply_fn(app: &App, id: u8, f: f32, l: f32, v: f32, t: usize, p: &[f32]) -> V
                 let mut current_sample4;
                 let mut previous_sample4 = 0.;
                 //let cycle_len = (44100. / f) as usize;
-                let f1 = (f * op1.num as f32 / op1.den as f32) * 2f32.powf(op1.detune as f32 / 128.);
+                let f1 =
+                    (f * op1.num as f32 / op1.den as f32) * 2f32.powf(op1.detune as f32 / 128.);
                 let cycle_len1 = (44100. / f1) as usize;
-                let f2 = (f * op2.num as f32 / op2.den as f32) * 2f32.powf(op2.detune as f32 / 128.);
+                let f2 =
+                    (f * op2.num as f32 / op2.den as f32) * 2f32.powf(op2.detune as f32 / 128.);
                 let cycle_len2 = (44100. / f2) as usize;
-                let f3 = (f * op3.num as f32 / op3.den as f32) * 2f32.powf(op3.detune as f32 / 128.);
+                let f3 =
+                    (f * op3.num as f32 / op3.den as f32) * 2f32.powf(op3.detune as f32 / 128.);
                 let cycle_len3 = (44100. / f3) as usize;
-                let f4 = (f * op4.num as f32 / op4.den as f32) * 2f32.powf(op4.detune as f32 / 128.);
+                let f4 =
+                    (f * op4.num as f32 / op4.den as f32) * 2f32.powf(op4.detune as f32 / 128.);
                 let cycle_len4 = (44100. / f4) as usize;
                 for el in 0..time {
                     //for el in (0..cycle_len).map(|it| (it as f32 / cycle_len as f32) * 2. - 1.) {
@@ -178,16 +181,18 @@ fn apply_fn(app: &App, id: u8, f: f32, l: f32, v: f32, t: usize, p: &[f32]) -> V
                         mod2 * ((algo & 0b0010) >> 1) as f32,
                         mod3 * ((algo & 0b0011) == 0b0011) as u8 as f32,
                     );
-                    let tmp_sample = (*level as f32 / 255.) * (current_sample4 
-                        + current_sample3 * (1. - ((algo & 0b0011) == 0b0011) as u8 as f32)
-                        + current_sample2 * (1. - ((algo & 0b0010) >> 1) as f32 * (algo & 0b0001) as f32)
-                        + current_sample1 * (1. - ((algo & 0b1000) >> 2) as f32 * ((algo & 0b1000) >> 2) as f32 * ((algo & 0b0100) >> 2) as f32)
-                    );
+                    let tmp_sample = (*level as f32 / 255.)
+                        * (current_sample4
+                            + current_sample3 * (1. - ((algo & 0b0011) == 0b0011) as u8 as f32)
+                            + current_sample2
+                                * (1. - ((algo & 0b0010) >> 1) as f32 * (algo & 0b0001) as f32)
+                            + current_sample1
+                                * (1.
+                                    - ((algo & 0b1000) >> 2) as f32
+                                        * ((algo & 0b1000) >> 2) as f32
+                                        * ((algo & 0b0100) >> 2) as f32));
 
-                    out.push((
-                        tmp_sample,
-                        tmp_sample
-                    ));
+                    out.push((tmp_sample, tmp_sample));
                 }
                 out
             }
@@ -351,7 +356,7 @@ pub fn render(app: &mut App) -> Vec<f32> {
                             .content
                             .to_string()
                             .parse::<usize>()
-                        .unwrap_or(0);
+                            .unwrap_or(0);
                         let mut note_repeat = 1;
                         let mut slice_param = 1.0;
                         let mut fx_params_slice = Vec::new();
@@ -587,36 +592,36 @@ pub fn render(app: &mut App) -> Vec<f32> {
                         (fs, ls, vs) = (new_f, new_l, new_v);
                         let mut temp_vec: Vec<Vec<(f32, f32)>> = Vec::new();
                         for (fs, ls, vs) in pushed_args {
-                        //    match pushed_fn {
-                        //        Ok(val)( => {
+                            //    match pushed_fn {
+                            //        Ok(val)( => {
                             let def_val = &Span::from("0");
                             let new_el = &el_iter.next().unwrap_or(def_val).content;
                             println!("{}", new_el);
-                            
-                                    let out_tuple = apply_fn(
-                                        app,
+
+                            let out_tuple = apply_fn(
+                                app,
                                 pushed_fn as u8,
-                             //   new_el
-                             //               .parse::<u8>()
-                             //               .unwrap_or(0),
-                                        fs,
-                                        ls / slice_param,
-                                        vs,
-                                        44100,
-                                        fx_params_slice.as_slice(),
-                                    );
-                                    temp_vec.push(out_tuple);
-                        //        }
-                        //        Err(_) => {
-                        //            let out_tuple = f1(
-                        //                fs,
-                        //                ls / slice_param,
-                        //                vs,
-                        //                44100,
-                        //                fx_params_slice.as_slice(),
-                        //            );
-                        //            temp_vec.push(out_tuple);
-                        //        }
+                                //   new_el
+                                //               .parse::<u8>()
+                                //               .unwrap_or(0),
+                                fs,
+                                ls / slice_param,
+                                vs,
+                                44100,
+                                fx_params_slice.as_slice(),
+                            );
+                            temp_vec.push(out_tuple);
+                            //        }
+                            //        Err(_) => {
+                            //            let out_tuple = f1(
+                            //                fs,
+                            //                ls / slice_param,
+                            //                vs,
+                            //                44100,
+                            //                fx_params_slice.as_slice(),
+                            //            );
+                            //            temp_vec.push(out_tuple);
+                            //        }
                             //}
                         }
                         let len_of_note = temp_vec[0].len();
@@ -698,7 +703,6 @@ pub fn render(app: &mut App) -> Vec<f32> {
         })
         .flat_map(|(x, y)| [x, y])
         .collect::<Vec<_>>()
-
 }
 
 pub fn render_and_save_file(app: &mut App, file_name: String) {
@@ -1469,9 +1473,40 @@ pub fn up_cell<const AMOUNT: i8>(app: &mut App) {
                     .content = num.saturating_add_signed(AMOUNT).to_string().into();
             }
         }
-        (Mode::Insert | Mode::Normal, Page::Instrument { id }) => {
-            change_instr::<AMOUNT>(app, id);
-        }
+        (Mode::Insert | Mode::Normal, Page::Instrument { id }) => match app.instrs[id as usize].as_mut() {
+            Some(Instrument {
+                synth:
+                    Synths::Fm {
+                        name,
+                        level,
+                        algo,
+                        op1,
+                        op2,
+                        op3,
+                        op4,
+                        lfo1,
+                    },
+                ..
+            }) => match app.instr_cursor {
+                1 => {
+                    change_instr::<AMOUNT>(app, id);
+                }
+                2 => {
+                    *level += AMOUNT as u8;
+                }
+                3 => {
+                    *algo += AMOUNT as u8;
+                }
+                4 => {
+                    op1.level += AMOUNT as u8;
+                }
+                _ => {}
+            },
+
+            _ => {
+                    change_instr::<AMOUNT>(app, id);
+            }
+        },
         (Mode::Normal | Mode::Visual | Mode::Command, ..) => {}
         _ => {}
     }
@@ -1526,11 +1561,21 @@ pub fn change_instr<const AMOUNT: i8>(app: &mut App, id: u8) {
                     name: "",
                     level: 255,
                     algo: 0,
-                    op1: Operator { ..Default::default() },
-                    op2: Operator { ..Default::default() },
-                    op3: Operator { ..Default::default() },
-                    op4: Operator { ..Default::default() },
-                    lfo1: Lfo { ..Default::default() }
+                    op1: Operator {
+                        ..Default::default()
+                    },
+                    op2: Operator {
+                        ..Default::default()
+                    },
+                    op3: Operator {
+                        ..Default::default()
+                    },
+                    op4: Operator {
+                        ..Default::default()
+                    },
+                    lfo1: Lfo {
+                        ..Default::default()
+                    },
                 },
             })
         }
@@ -1551,10 +1596,7 @@ pub fn change_instr<const AMOUNT: i8>(app: &mut App, id: u8) {
                 },
             })
         }
-        (
-            None,
-            1,
-        ) => {
+        (None, 1) => {
             app.instrs[id as usize] = Some(Instrument {
                 name: "",
                 synth: Synths::Rust {
