@@ -6,12 +6,34 @@ type FnSymbol<'a> = libloading::Symbol<
 #[derive(Debug, Clone, Copy, Default)]
 pub enum WaveType {
     #[default]
-    Sine,
-    Square,
-    Saw,
-    Triangle,
+    Sine = 0,
+    Square = 1,
+    Saw = 2,
+    Triangle = 3,
 }
 
+impl std::ops::Add<u8> for WaveType {
+    type Output = WaveType;
+    fn add(self, rhs: u8) -> Self::Output {
+        WaveType::from(self as u8 + rhs) 
+    }
+}
+
+impl std::ops::AddAssign<u8> for WaveType {
+    fn add_assign(&mut self, rhs: u8) {
+        *self = WaveType::from(*self as u8 + rhs) 
+    }
+}
+impl From<u8> for WaveType {
+    fn from(value: u8) -> Self {
+        match value {
+            0 => WaveType::Sine,
+            1 => WaveType::Square,
+            2 => WaveType::Saw,
+            _ => WaveType::Triangle,
+        }
+    }
+}
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Lfo {
     pub wave: WaveType,

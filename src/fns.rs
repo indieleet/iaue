@@ -1500,6 +1500,39 @@ pub fn up_cell<const AMOUNT: i8>(app: &mut App) {
                 4 => {
                     op1.level += AMOUNT as u8;
                 }
+                5 => {
+                    op2.level += AMOUNT as u8;
+                }
+                6 => {
+                    op3.level += AMOUNT as u8;
+                }
+                7 => {
+                    op4.level += AMOUNT as u8;
+                }
+                8 => {
+                    op1.wave += AMOUNT as u8;
+                }
+                9 => {
+                    op2.wave += AMOUNT as u8;
+                }
+                10 => {
+                    op3.wave += AMOUNT as u8;
+                }
+                11 => {
+                    op4.wave += AMOUNT as u8;
+                }
+                12 => {
+                    op1.feedback += AMOUNT as u8;
+                }
+                13 => {
+                    op2.feedback += AMOUNT as u8;
+                }
+                14 => {
+                    op3.feedback += AMOUNT as u8;
+                }
+                15 => {
+                    op4.feedback += AMOUNT as u8;
+                }
                 _ => {}
             },
 
