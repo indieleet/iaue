@@ -27,7 +27,7 @@ impl std::ops::AddAssign<u8> for WaveType {
 impl From<u8> for WaveType {
     fn from(value: u8) -> Self {
         match value {
-            0 => WaveType::Sine,
+            0 | 4 => WaveType::Sine,
             1 => WaveType::Square,
             2 => WaveType::Saw,
             _ => WaveType::Triangle,
@@ -87,10 +87,19 @@ impl core::fmt::Display for WaveType {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             WaveType::Sine => {
-                write!(f, "Sine")
+                write!(f, "SIN")
+            }
+            WaveType::Square => {
+                write!(f, "SQR")
+            }
+            WaveType::Saw => {
+                write!(f, "SAW")
+            }
+            WaveType::Triangle => {
+                write!(f, "TRI")
             }
             _ => {
-                write!(f, "Other")
+                write!(f, "OTH")
             }
         }
     }

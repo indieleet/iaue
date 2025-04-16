@@ -271,7 +271,7 @@ impl Widget for TableWithCells<'_> {
                             buf.set_span(
                                 1,
                                 3,
-                                &Span::from(level.to_string()).patch_style(
+                                &Span::from(format!("LVL:{:x}", level)).patch_style(
                                     match self.app.instr_cursor {
                                         2 => Modifier::REVERSED,
                                         _ => Modifier::default(),
@@ -280,9 +280,9 @@ impl Widget for TableWithCells<'_> {
                                 11,
                             );
                             buf.set_span(
-                                1,
-                                4,
-                                &Span::from(algo.to_string()).patch_style(
+                                8,
+                                3,
+                                &Span::from(format!("ALG:{:x}", algo)).patch_style(
                                     match self.app.instr_cursor {
                                         3 => Modifier::REVERSED,
                                         _ => Modifier::default(),
@@ -292,8 +292,8 @@ impl Widget for TableWithCells<'_> {
                             );
                             buf.set_span(
                                 1,
-                                5,
-                                &Span::from(op1.level.to_string()).patch_style(
+                                4,
+                                &Span::from(format!("LVL:{:x}", op1.level)).patch_style(
                                     match self.app.instr_cursor {
                                         4 => Modifier::REVERSED,
                                         _ => Modifier::default(),
@@ -302,9 +302,9 @@ impl Widget for TableWithCells<'_> {
                                 11,
                             );
                             buf.set_span(
-                                1,
-                                6,
-                                &Span::from(op2.level.to_string()).patch_style(
+                                8,
+                                4,
+                                &Span::from(format!("LVL:{:x}", op2.level)).patch_style(
                                     match self.app.instr_cursor {
                                         5 => Modifier::REVERSED,
                                         _ => Modifier::default(),
@@ -313,9 +313,9 @@ impl Widget for TableWithCells<'_> {
                                 11,
                             );
                             buf.set_span(
-                                1,
-                                7,
-                                &Span::from(op3.level.to_string()).patch_style(
+                                15,
+                                4,
+                                &Span::from(format!("LVL:{:x}", op3.level)).patch_style(
                                     match self.app.instr_cursor {
                                         6 => Modifier::REVERSED,
                                         _ => Modifier::default(),
@@ -324,9 +324,9 @@ impl Widget for TableWithCells<'_> {
                                 11,
                             );
                             buf.set_span(
-                                1,
-                                8,
-                                &Span::from(op4.level.to_string()).patch_style(
+                                22,
+                                4,
+                                &Span::from(format!("LVL:{:x}", op4.level)).patch_style(
                                     match self.app.instr_cursor {
                                         7 => Modifier::REVERSED,
                                         _ => Modifier::default(),
@@ -336,8 +336,8 @@ impl Widget for TableWithCells<'_> {
                             );
                             buf.set_span(
                                 1,
-                                9,
-                                &Span::from(op1.wave.to_string()).patch_style(
+                                5,
+                                &Span::from(format!("WAV:{}", op1.wave)).patch_style(
                                     match self.app.instr_cursor {
                                         8 => Modifier::REVERSED,
                                         _ => Modifier::default(),
@@ -346,9 +346,9 @@ impl Widget for TableWithCells<'_> {
                                 11,
                             );
                             buf.set_span(
-                                1,
-                                10,
-                                &Span::from(op2.wave.to_string()).patch_style(
+                                8,
+                                5,
+                                &Span::from(format!("WAV:{}", op2.wave)).patch_style(
                                     match self.app.instr_cursor {
                                         9 => Modifier::REVERSED,
                                         _ => Modifier::default(),
@@ -357,9 +357,9 @@ impl Widget for TableWithCells<'_> {
                                 11,
                             );
                             buf.set_span(
-                                1,
-                                11,
-                                &Span::from(op3.wave.to_string()).patch_style(
+                                15,
+                                5,
+                                &Span::from(format!("WAV:{}", op3.wave)).patch_style(
                                     match self.app.instr_cursor {
                                         10 => Modifier::REVERSED,
                                         _ => Modifier::default(),
@@ -368,9 +368,9 @@ impl Widget for TableWithCells<'_> {
                                 11,
                             );
                             buf.set_span(
-                                1,
-                                12,
-                                &Span::from(op4.wave.to_string()).patch_style(
+                                22,
+                                5,
+                                &Span::from(format!("WAV:{}", op4.wave)).patch_style(
                                     match self.app.instr_cursor {
                                         11 => Modifier::REVERSED,
                                         _ => Modifier::default(),
@@ -380,8 +380,8 @@ impl Widget for TableWithCells<'_> {
                             );
                             buf.set_span(
                                 1,
-                                13,
-                                &Span::from(op1.feedback.to_string()).patch_style(
+                                6,
+                                &Span::from(format!("FBK:{:x}", op1.feedback)).patch_style(
                                     match self.app.instr_cursor {
                                         12 => Modifier::REVERSED,
                                         _ => Modifier::default(),
@@ -390,9 +390,9 @@ impl Widget for TableWithCells<'_> {
                                 11,
                             );
                             buf.set_span(
-                                1,
-                                14,
-                                &Span::from(op2.feedback.to_string()).patch_style(
+                                8,
+                                6,
+                                &Span::from(format!("FBK:{:x}", op2.feedback)).patch_style(
                                     match self.app.instr_cursor {
                                         13 => Modifier::REVERSED,
                                         _ => Modifier::default(),
@@ -401,9 +401,9 @@ impl Widget for TableWithCells<'_> {
                                 11,
                             );
                             buf.set_span(
-                                1,
                                 15,
-                                &Span::from(op3.feedback.to_string()).patch_style(
+                                6,
+                                &Span::from(format!("FBK:{:x}", op3.feedback)).patch_style(
                                     match self.app.instr_cursor {
                                         14 => Modifier::REVERSED,
                                         _ => Modifier::default(),
@@ -412,11 +412,144 @@ impl Widget for TableWithCells<'_> {
                                 11,
                             );
                             buf.set_span(
-                                1,
-                                16,
-                                &Span::from(op4.feedback.to_string()).patch_style(
+                                22,
+                                6,
+                                &Span::from(format!("FBK:{:x}", op4.feedback)).patch_style(
                                     match self.app.instr_cursor {
                                         15 => Modifier::REVERSED,
+                                        _ => Modifier::default(),
+                                    },
+                                ),
+                                11,
+                            );
+                            buf.set_span(
+                                1,
+                                7,
+                                &Span::from(format!("{:02x}/", op1.num)).patch_style(
+                                    match self.app.instr_cursor {
+                                        16 => Modifier::REVERSED,
+                                        _ => Modifier::default(),
+                                    },
+                                ),
+                                11,
+                            );
+                            buf.set_span(
+                                4,
+                                7,
+                                &Span::from(format!("{:02x}", op1.den)).patch_style(
+                                    match self.app.instr_cursor {
+                                        17 => Modifier::REVERSED,
+                                        _ => Modifier::default(),
+                                    },
+                                ),
+                                11,
+                            );
+                            buf.set_span(
+                                1,
+                                8,
+                                &Span::from(format!("DTN:{:x}", op1.detune)).patch_style(
+                                    match self.app.instr_cursor {
+                                        18 => Modifier::REVERSED,
+                                        _ => Modifier::default(),
+                                    },
+                                ),
+                                11,
+                            );
+                            buf.set_span(
+                                8,
+                                7,
+                                &Span::from(format!("{:02x}/", op2.num)).patch_style(
+                                    match self.app.instr_cursor {
+                                        19 => Modifier::REVERSED,
+                                        _ => Modifier::default(),
+                                    },
+                                ),
+                                11,
+                            );
+                            buf.set_span(
+                                11,
+                                7,
+                                &Span::from(format!("{:02x}", op2.den)).patch_style(
+                                    match self.app.instr_cursor {
+                                        20 => Modifier::REVERSED,
+                                        _ => Modifier::default(),
+                                    },
+                                ),
+                                11,
+                            );
+                            buf.set_span(
+                                8,
+                                8,
+                                &Span::from(format!("DTN:{:x}", op2.detune)).patch_style(
+                                    match self.app.instr_cursor {
+                                        21 => Modifier::REVERSED,
+                                        _ => Modifier::default(),
+                                    },
+                                ),
+                                11,
+                            );
+
+                            buf.set_span(
+                                15,
+                                7,
+                                &Span::from(format!("{:02x}/", op3.num)).patch_style(
+                                    match self.app.instr_cursor {
+                                        22 => Modifier::REVERSED,
+                                        _ => Modifier::default(),
+                                    },
+                                ),
+                                11,
+                            );
+                            buf.set_span(
+                                18,
+                                7,
+                                &Span::from(format!("{:02x}", op3.den)).patch_style(
+                                    match self.app.instr_cursor {
+                                        23 => Modifier::REVERSED,
+                                        _ => Modifier::default(),
+                                    },
+                                ),
+                                11,
+                            );
+                            buf.set_span(
+                                15,
+                                8,
+                                &Span::from(format!("DTN:{:x}", op3.detune)).patch_style(
+                                    match self.app.instr_cursor {
+                                        24 => Modifier::REVERSED,
+                                        _ => Modifier::default(),
+                                    },
+                                ),
+                                11,
+                            );
+                            buf.set_span(
+                                22,
+                                7,
+                                &Span::from(format!("{:02x}/", op4.num)).patch_style(
+                                    match self.app.instr_cursor {
+                                        25 => Modifier::REVERSED,
+                                        _ => Modifier::default(),
+                                    },
+                                ),
+                                11,
+                            );
+                            buf.set_span(
+                                25,
+                                7,
+                                &Span::from(format!("{:02x}", op4.den)).patch_style(
+                                    match self.app.instr_cursor {
+                                        26 => Modifier::REVERSED,
+                                        _ => Modifier::default(),
+                                    },
+                                ),
+                                11,
+                            );
+                            buf.set_span(
+                                22,
+                                8,
+                                &Span::from(format!("DTN:{:x}", op4.detune)).patch_style(
+                                    match self.app.instr_cursor {
+                                        27 => Modifier::REVERSED,
                                         _ => Modifier::default(),
                                     },
                                 ),

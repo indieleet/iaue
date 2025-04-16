@@ -596,7 +596,7 @@ pub fn render(app: &mut App) -> Vec<f32> {
                             //        Ok(val)( => {
                             let def_val = &Span::from("0");
                             let new_el = &el_iter.next().unwrap_or(def_val).content;
-                            println!("{}", new_el);
+                            //println!("{}", new_el);
 
                             let out_tuple = apply_fn(
                                 app,
@@ -1532,6 +1532,42 @@ pub fn up_cell<const AMOUNT: i8>(app: &mut App) {
                 }
                 15 => {
                     op4.feedback += AMOUNT as u8;
+                }
+                16 => {
+                    op1.num += AMOUNT as u8;
+                }
+                17 => {
+                    op1.den += AMOUNT as u8;
+                }
+                18 => {
+                    op1.detune += AMOUNT;
+                }
+                19 => {
+                    op2.num += AMOUNT as u8;
+                }
+                20 => {
+                    op2.den += AMOUNT as u8;
+                }
+                21 => {
+                    op2.detune += AMOUNT;
+                }
+                22 => {
+                    op3.num += AMOUNT as u8;
+                }
+                23 => {
+                    op3.den += AMOUNT as u8;
+                }
+                24 => {
+                    op3.detune += AMOUNT;
+                }
+                25 => {
+                    op4.num += AMOUNT as u8;
+                }
+                26 => {
+                    op4.den += AMOUNT as u8;
+                }
+                27 => {
+                    op4.detune += AMOUNT;
                 }
                 _ => {}
             },
