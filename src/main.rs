@@ -202,7 +202,7 @@ impl Widget for TableWithCells<'_> {
                         5,
                         1,
                         &Span::from(format!("name: {}", instr.name)).patch_style(
-                            match self.app.instr_cursor {
+                            match self.app.instr_cursor.y {
                                 0 => Modifier::REVERSED,
                                 _ => Modifier::default(),
                             },
@@ -220,7 +220,7 @@ impl Widget for TableWithCells<'_> {
                                 1,
                                 2,
                                 &Span::from("type: rust").patch_style(
-                                    match self.app.instr_cursor {
+                                    match self.app.instr_cursor.y {
                                         1 => Modifier::REVERSED,
                                         _ => Modifier::default(),
                                     },
@@ -251,7 +251,7 @@ impl Widget for TableWithCells<'_> {
                             buf.set_span(
                                 1,
                                 2,
-                                &Span::from("type: fm").patch_style(match self.app.instr_cursor {
+                                &Span::from("type: fm").patch_style(match self.app.instr_cursor.y {
                                     1 => Modifier::REVERSED,
                                     _ => Modifier::default(),
                                 }),
@@ -272,7 +272,7 @@ impl Widget for TableWithCells<'_> {
                                 1,
                                 3,
                                 &Span::from(format!("LVL:{:x}", level)).patch_style(
-                                    match self.app.instr_cursor {
+                                    match self.app.instr_cursor.y {
                                         2 => Modifier::REVERSED,
                                         _ => Modifier::default(),
                                     },
@@ -283,7 +283,7 @@ impl Widget for TableWithCells<'_> {
                                 8,
                                 3,
                                 &Span::from(format!("ALG:{:x}", algo)).patch_style(
-                                    match self.app.instr_cursor {
+                                    match self.app.instr_cursor.y {
                                         3 => Modifier::REVERSED,
                                         _ => Modifier::default(),
                                     },
@@ -294,7 +294,7 @@ impl Widget for TableWithCells<'_> {
                                 1,
                                 4,
                                 &Span::from(format!("LVL:{:x}", op1.level)).patch_style(
-                                    match self.app.instr_cursor {
+                                    match self.app.instr_cursor.y {
                                         4 => Modifier::REVERSED,
                                         _ => Modifier::default(),
                                     },
@@ -305,7 +305,7 @@ impl Widget for TableWithCells<'_> {
                                 8,
                                 4,
                                 &Span::from(format!("LVL:{:x}", op2.level)).patch_style(
-                                    match self.app.instr_cursor {
+                                    match self.app.instr_cursor.y {
                                         5 => Modifier::REVERSED,
                                         _ => Modifier::default(),
                                     },
@@ -316,7 +316,7 @@ impl Widget for TableWithCells<'_> {
                                 15,
                                 4,
                                 &Span::from(format!("LVL:{:x}", op3.level)).patch_style(
-                                    match self.app.instr_cursor {
+                                    match self.app.instr_cursor.y {
                                         6 => Modifier::REVERSED,
                                         _ => Modifier::default(),
                                     },
@@ -327,7 +327,7 @@ impl Widget for TableWithCells<'_> {
                                 22,
                                 4,
                                 &Span::from(format!("LVL:{:x}", op4.level)).patch_style(
-                                    match self.app.instr_cursor {
+                                    match self.app.instr_cursor.y {
                                         7 => Modifier::REVERSED,
                                         _ => Modifier::default(),
                                     },
@@ -338,7 +338,7 @@ impl Widget for TableWithCells<'_> {
                                 1,
                                 5,
                                 &Span::from(format!("WAV:{}", op1.wave)).patch_style(
-                                    match self.app.instr_cursor {
+                                    match self.app.instr_cursor.y {
                                         8 => Modifier::REVERSED,
                                         _ => Modifier::default(),
                                     },
@@ -349,7 +349,7 @@ impl Widget for TableWithCells<'_> {
                                 8,
                                 5,
                                 &Span::from(format!("WAV:{}", op2.wave)).patch_style(
-                                    match self.app.instr_cursor {
+                                    match self.app.instr_cursor.y {
                                         9 => Modifier::REVERSED,
                                         _ => Modifier::default(),
                                     },
@@ -360,7 +360,7 @@ impl Widget for TableWithCells<'_> {
                                 15,
                                 5,
                                 &Span::from(format!("WAV:{}", op3.wave)).patch_style(
-                                    match self.app.instr_cursor {
+                                    match self.app.instr_cursor.y {
                                         10 => Modifier::REVERSED,
                                         _ => Modifier::default(),
                                     },
@@ -371,7 +371,7 @@ impl Widget for TableWithCells<'_> {
                                 22,
                                 5,
                                 &Span::from(format!("WAV:{}", op4.wave)).patch_style(
-                                    match self.app.instr_cursor {
+                                    match self.app.instr_cursor.y {
                                         11 => Modifier::REVERSED,
                                         _ => Modifier::default(),
                                     },
@@ -382,7 +382,7 @@ impl Widget for TableWithCells<'_> {
                                 1,
                                 6,
                                 &Span::from(format!("FBK:{:x}", op1.feedback)).patch_style(
-                                    match self.app.instr_cursor {
+                                    match self.app.instr_cursor.y {
                                         12 => Modifier::REVERSED,
                                         _ => Modifier::default(),
                                     },
@@ -393,7 +393,7 @@ impl Widget for TableWithCells<'_> {
                                 8,
                                 6,
                                 &Span::from(format!("FBK:{:x}", op2.feedback)).patch_style(
-                                    match self.app.instr_cursor {
+                                    match self.app.instr_cursor.y {
                                         13 => Modifier::REVERSED,
                                         _ => Modifier::default(),
                                     },
@@ -404,7 +404,7 @@ impl Widget for TableWithCells<'_> {
                                 15,
                                 6,
                                 &Span::from(format!("FBK:{:x}", op3.feedback)).patch_style(
-                                    match self.app.instr_cursor {
+                                    match self.app.instr_cursor.y {
                                         14 => Modifier::REVERSED,
                                         _ => Modifier::default(),
                                     },
@@ -415,7 +415,7 @@ impl Widget for TableWithCells<'_> {
                                 22,
                                 6,
                                 &Span::from(format!("FBK:{:x}", op4.feedback)).patch_style(
-                                    match self.app.instr_cursor {
+                                    match self.app.instr_cursor.y {
                                         15 => Modifier::REVERSED,
                                         _ => Modifier::default(),
                                     },
@@ -426,7 +426,7 @@ impl Widget for TableWithCells<'_> {
                                 1,
                                 7,
                                 &Span::from(format!("{:02x}/", op1.num)).patch_style(
-                                    match self.app.instr_cursor {
+                                    match self.app.instr_cursor.y {
                                         16 => Modifier::REVERSED,
                                         _ => Modifier::default(),
                                     },
@@ -437,7 +437,7 @@ impl Widget for TableWithCells<'_> {
                                 4,
                                 7,
                                 &Span::from(format!("{:02x}", op1.den)).patch_style(
-                                    match self.app.instr_cursor {
+                                    match self.app.instr_cursor.y {
                                         17 => Modifier::REVERSED,
                                         _ => Modifier::default(),
                                     },
@@ -448,7 +448,7 @@ impl Widget for TableWithCells<'_> {
                                 1,
                                 8,
                                 &Span::from(format!("DTN:{:x}", op1.detune)).patch_style(
-                                    match self.app.instr_cursor {
+                                    match self.app.instr_cursor.y {
                                         18 => Modifier::REVERSED,
                                         _ => Modifier::default(),
                                     },
@@ -459,7 +459,7 @@ impl Widget for TableWithCells<'_> {
                                 8,
                                 7,
                                 &Span::from(format!("{:02x}/", op2.num)).patch_style(
-                                    match self.app.instr_cursor {
+                                    match self.app.instr_cursor.y {
                                         19 => Modifier::REVERSED,
                                         _ => Modifier::default(),
                                     },
@@ -470,7 +470,7 @@ impl Widget for TableWithCells<'_> {
                                 11,
                                 7,
                                 &Span::from(format!("{:02x}", op2.den)).patch_style(
-                                    match self.app.instr_cursor {
+                                    match self.app.instr_cursor.y {
                                         20 => Modifier::REVERSED,
                                         _ => Modifier::default(),
                                     },
@@ -481,7 +481,7 @@ impl Widget for TableWithCells<'_> {
                                 8,
                                 8,
                                 &Span::from(format!("DTN:{:x}", op2.detune)).patch_style(
-                                    match self.app.instr_cursor {
+                                    match self.app.instr_cursor.y {
                                         21 => Modifier::REVERSED,
                                         _ => Modifier::default(),
                                     },
@@ -493,7 +493,7 @@ impl Widget for TableWithCells<'_> {
                                 15,
                                 7,
                                 &Span::from(format!("{:02x}/", op3.num)).patch_style(
-                                    match self.app.instr_cursor {
+                                    match self.app.instr_cursor.y {
                                         22 => Modifier::REVERSED,
                                         _ => Modifier::default(),
                                     },
@@ -504,7 +504,7 @@ impl Widget for TableWithCells<'_> {
                                 18,
                                 7,
                                 &Span::from(format!("{:02x}", op3.den)).patch_style(
-                                    match self.app.instr_cursor {
+                                    match self.app.instr_cursor.y {
                                         23 => Modifier::REVERSED,
                                         _ => Modifier::default(),
                                     },
@@ -515,7 +515,7 @@ impl Widget for TableWithCells<'_> {
                                 15,
                                 8,
                                 &Span::from(format!("DTN:{:x}", op3.detune)).patch_style(
-                                    match self.app.instr_cursor {
+                                    match self.app.instr_cursor.y {
                                         24 => Modifier::REVERSED,
                                         _ => Modifier::default(),
                                     },
@@ -526,7 +526,7 @@ impl Widget for TableWithCells<'_> {
                                 22,
                                 7,
                                 &Span::from(format!("{:02x}/", op4.num)).patch_style(
-                                    match self.app.instr_cursor {
+                                    match self.app.instr_cursor.y {
                                         25 => Modifier::REVERSED,
                                         _ => Modifier::default(),
                                     },
@@ -537,7 +537,7 @@ impl Widget for TableWithCells<'_> {
                                 25,
                                 7,
                                 &Span::from(format!("{:02x}", op4.den)).patch_style(
-                                    match self.app.instr_cursor {
+                                    match self.app.instr_cursor.y {
                                         26 => Modifier::REVERSED,
                                         _ => Modifier::default(),
                                     },
@@ -548,7 +548,7 @@ impl Widget for TableWithCells<'_> {
                                 22,
                                 8,
                                 &Span::from(format!("DTN:{:x}", op4.detune)).patch_style(
-                                    match self.app.instr_cursor {
+                                    match self.app.instr_cursor.y {
                                         27 => Modifier::REVERSED,
                                         _ => Modifier::default(),
                                     },
@@ -564,7 +564,7 @@ impl Widget for TableWithCells<'_> {
                     buf.set_span(
                         1,
                         2,
-                        &Span::from("type: none").patch_style(match self.app.instr_cursor {
+                        &Span::from("type: none").patch_style(match self.app.instr_cursor.y {
                             1 => Modifier::REVERSED,
                             _ => Modifier::default(),
                         }),
@@ -716,7 +716,7 @@ fn start_app(working_file: &str) -> Result<()> {
         normal_cursor: NormalCursor { x: 1, y: 1 },
         visual_cursor: VisualCursor { x: 1, y: 1 },
         insert_cursor: InsertCursor::default(),
-        instr_cursor: 0,
+        instr_cursor: NormalCursor { x: 1, y: 1 },
         current_mode: Mode::Normal,
         audio_params: OutputDeviceParameters {
             channels_count: 2,

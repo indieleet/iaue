@@ -38,7 +38,7 @@ impl From<u8> for WaveType {
 pub struct Lfo {
     pub wave: WaveType,
     pub dest: FMModDest,
-    pub speed: f32,
+    pub speed: u8,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -64,7 +64,7 @@ impl core::default::Default for Operator {
     }
 }
 
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, Default, Eq, PartialEq)]
 pub enum FMModDest {
     #[default]
     Level = 0,

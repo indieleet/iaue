@@ -109,10 +109,15 @@ fn apply_fn(app: &App, id: u8, f: f32, l: f32, v: f32, t: usize, p: &[f32]) -> V
                 op4,
                 lfo1,
             } => {
-                match *algo {
-                    _ => {}
-                }
                 let time = (l * t as f32) as usize;
+                let speed = if lfo1.speed == 0 { 1 } else { t / lfo1.speed as usize };
+                let mut lfo1_out = match lfo1.wave {
+                    _ | WaveType::Sine  => {
+                        (0..(speed)).map(|it| (((it as f32) / speed as f32 * 2. - 1.) * 2. * core::f32::consts::PI).sin())
+                            .cycle()
+                    }
+                    
+                };
                 let mut out: Vec<(f32, f32)> = Vec::with_capacity(time);
                 let mut current_sample1;
                 let mut previous_sample1 = 0.;
@@ -181,7 +186,9 @@ fn apply_fn(app: &App, id: u8, f: f32, l: f32, v: f32, t: usize, p: &[f32]) -> V
                         mod2 * ((algo & 0b0010) >> 1) as f32,
                         mod3 * ((algo & 0b0011) == 0b0011) as u8 as f32,
                     );
-                    let tmp_sample = (*level as f32 / 255.)
+                    let tmp_sample = 
+                    if lfo1.dest == FMModDest::Level { lfo1_out.next().unwrap() } else { 1. } *
+                    (*level as f32 / 255.)
                         * (current_sample4
                             + current_sample3 * (1. - ((algo & 0b0011) == 0b0011) as u8 as f32)
                             + current_sample2
@@ -1051,7 +1058,7 @@ pub fn move_down(app: &mut App) {
             app.command_buf.push('j');
         }
         (Mode::Normal | Mode::Insert, Page::Instrument { .. }) => {
-            app.instr_cursor = app.instr_cursor.saturating_add(count as usize);
+            app.instr_cursor.y = app.instr_cursor.y.saturating_add(count);
         }
         _ => {}
     }
@@ -1073,7 +1080,7 @@ pub fn move_up(app: &mut App) {
             app.command_buf.push('k');
         }
         (Mode::Normal | Mode::Insert, Page::Instrument { .. }) => {
-            app.instr_cursor = app.instr_cursor.saturating_sub(count as usize);
+            app.instr_cursor.y = app.instr_cursor.y.saturating_sub(count);
         }
         _ => {}
     }
@@ -1487,7 +1494,7 @@ pub fn up_cell<const AMOUNT: i8>(app: &mut App) {
                         lfo1,
                     },
                 ..
-            }) => match app.instr_cursor {
+            }) => match app.instr_cursor.y {
                 1 => {
                     change_instr::<AMOUNT>(app, id);
                 }
